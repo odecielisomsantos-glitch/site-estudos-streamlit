@@ -28,11 +28,10 @@ def get_arquivo_db():
 
 def carregar_dados_usuario():
     arquivo = get_arquivo_db()
-    # Padrão
     st.session_state.materias = {}
     st.session_state.historico_estudos = {}
     st.session_state.ciclo_estudos = []
-    st.session_state.flashcards = [] # Lista de dicionários: {materia, pergunta, resposta}
+    st.session_state.flashcards = []
 
     if os.path.exists(arquivo):
         try:
@@ -47,6 +46,7 @@ def carregar_dados_usuario():
 def salvar_dados():
     if not st.session_state.logado: return
     arquivo = get_arquivo_db()
+    if 'flashcards' not in st.session_state: st.session_state.flashcards = []
     dados = {
         "materias": st.session_state.materias,
         "historico": st.session_state.historico_estudos,
@@ -86,6 +86,7 @@ if not st.session_state.logado:
 # 🚀 APP PRINCIPAL
 # ==========================================
 if 'sessao_estudo' not in st.session_state: st.session_state.sessao_estudo = None 
+if 'flashcards' not in st.session_state: st.session_state.flashcards = []
 
 # --- CSS ---
 st.markdown("""
@@ -98,22 +99,7 @@ st.markdown("""
     .meta-text { font-size: 0.85rem; color: #888; text-align: right; }
     .item-title { font-size: 1.1rem; font-weight: 600; color: #444; }
     .etapa-card { background-color: white; padding: 15px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-    
-    /* Flashcard Style */
-    .flashcard {
-        background-color: #fff;
-        border: 2px solid #e2e8f0;
-        border-radius: 15px;
-        padding: 40px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        cursor: pointer;
-        min-height: 200px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-    }
+    .flashcard { background-color: #fff; border: 2px solid #e2e8f0; border-radius: 15px; padding: 40px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); cursor: pointer; min-height: 200px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -155,10 +141,7 @@ st.sidebar.title("StudyHub Pro")
 st.sidebar.caption(f"👤 **{st.session_state.usuario_atual}**")
 if st.sidebar.button("🚪 Sair"): fazer_logout()
 st.sidebar.divider()
-
-# MENU NOVO
 menu = st.sidebar.radio("Navegação", ["🏠 Home", "⚖️ Lei Seca", "🧠 Flashcards", "📊 Acompanhamento"])
-
 st.sidebar.divider()
 if st.sidebar.button("🗑️ Resetar Meus Dados"):
     arquivo = get_arquivo_db()
@@ -169,7 +152,7 @@ if st.sidebar.button("🗑️ Resetar Meus Dados"):
     st.session_state.flashcards = []
     st.rerun()
 
-# Lógica de atualização do Ciclo em background
+# Atualização do Ciclo
 if st.session_state.sessao_estudo and st.session_state.sessao_estudo['rodando']:
     st.sidebar.info(f"🟢 {st.session_state.sessao_estudo['materia']}")
     idx = st.session_state.sessao_estudo.get('index_ciclo')
@@ -178,11 +161,22 @@ if st.session_state.sessao_estudo and st.session_state.sessao_estudo['rodando']:
         st.session_state.ciclo_estudos[idx]['cumprido'] = (st.session_state.sessao_estudo['acumulado'] + delta) / 60
 
 # ==========================================
-# 🏠 HOME (Sessão Ativa + Ciclo)
+# 🏠 HOME
 # ==========================================
 if menu == "🏠 Home":
     st.title(f"Painel de {st.session_state.usuario_atual}")
     
+    # --- CALENDÁRIO (VOLTOU PARA CÁ) ---
+    if 'ano_cal' not in st.session_state: st.session_state.ano_cal = datetime.now().year; st.session_state.mes_cal = datetime.now().month
+    with st.expander("📅 Calendário de Estudos", expanded=True):
+        c_prev, c_mes, c_next = st.columns([1, 6, 1])
+        if c_prev.button("⬅️"): st.session_state.mes_cal -= 1
+        c_mes.markdown(f"<h4 style='text-align:center'>{MESES_PT.get(st.session_state.mes_cal, 'Mês')} {st.session_state.ano_cal}</h4>", unsafe_allow_html=True)
+        if c_next.button("➡️"): st.session_state.mes_cal += 1
+        desenhar_calendario(st.session_state.ano_cal, st.session_state.mes_cal)
+    
+    st.divider()
+
     lista_materias = list(st.session_state.materias.keys())
     if not lista_materias:
         st.warning("Cadastre suas matérias abaixo para liberar o sistema.")
@@ -264,103 +258,62 @@ if menu == "🏠 Home":
             if st.button("Limpar Ciclo"): st.session_state.ciclo_estudos = []; salvar_dados(); st.rerun()
 
 # ==========================================
-# ⚖️ LEI SECA (NOVA ABA)
+# ⚖️ LEI SECA
 # ==========================================
 elif menu == "⚖️ Lei Seca":
-    st.title("⚖️ Leitura de Lei Seca")
-    st.markdown("Use este cronômetro dedicado para registrar seu tempo de leitura de códigos e legislação.")
-    
+    st.title("⚖️ Lei Seca")
+    st.markdown("Cronômetro dedicado para legislação.")
     with st.container(border=True):
         if st.session_state.sessao_estudo is None:
             c1, c2 = st.columns([3, 1])
-            lei = c1.text_input("Qual Lei você vai ler?", placeholder="Ex: Constituição Federal, Código Civil...")
-            meta = c2.number_input("Meta (min)", 15, 120, 30)
-            
-            if st.button("📖 Iniciar Leitura", type="primary", use_container_width=True):
+            lei = c1.text_input("Lei/Código", placeholder="Ex: CF/88")
+            meta = c2.number_input("Meta", 15, 120, 30)
+            if st.button("📖 Ler", type="primary", use_container_width=True):
                 if lei:
-                    st.session_state.sessao_estudo = {
-                        "materia": "Lei Seca", 
-                        "conteudo": lei, 
-                        "meta": meta, 
-                        "inicio": datetime.now(), 
-                        "acumulado": 0, 
-                        "rodando": True, 
-                        "index_ciclo": None
-                    }
+                    st.session_state.sessao_estudo = {"materia": "Lei Seca", "conteudo": lei, "meta": meta, "inicio": datetime.now(), "acumulado": 0, "rodando": True, "index_ciclo": None}
                     st.rerun()
-                else:
-                    st.warning("Digite o nome da Lei.")
+                else: st.warning("Digite o nome.")
         else:
-            # Mostra o timer padrão se já estiver rodando
-            st.info("Você já tem uma sessão ativa. Vá para a Home para gerenciar ou finalize-a.")
+            st.info("Sessão ativa na Home.")
             if st.button("Ir para Home"): st.rerun()
 
 # ==========================================
-# 🧠 FLASHCARDS (NOVA ABA)
+# 🧠 FLASHCARDS
 # ==========================================
 elif menu == "🧠 Flashcards":
     st.title("🧠 Flashcards")
-    
-    tab_rev, tab_cri = st.tabs(["Revisar", "Criar Novos"])
-    
+    tab_rev, tab_cri = st.tabs(["Revisar", "Criar"])
     with tab_cri:
         c1, c2 = st.columns(2)
         m_flash = c1.selectbox("Matéria", list(st.session_state.materias.keys()) if st.session_state.materias else ["Geral"])
         perg = st.text_area("Pergunta")
         resp = st.text_area("Resposta")
-        if st.button("Salvar Card"):
+        if st.button("Salvar"):
             if perg and resp:
                 st.session_state.flashcards.append({"materia": m_flash, "pergunta": perg, "resposta": resp})
                 salvar_dados()
-                st.success("Card criado!")
-    
+                st.success("Salvo!")
     with tab_rev:
-        if not st.session_state.flashcards:
-            st.info("Nenhum flashcard criado ainda.")
+        if not st.session_state.flashcards: st.info("Sem cards.")
         else:
             if 'card_atual' not in st.session_state: st.session_state.card_atual = random.choice(st.session_state.flashcards)
             if 'card_virado' not in st.session_state: st.session_state.card_virado = False
-
             card = st.session_state.card_atual
-            
-            st.markdown(f"### {card['materia']}")
-            
-            # Área do Card
             conteudo = card['resposta'] if st.session_state.card_virado else card['pergunta']
-            cor_fundo = "#d1fae5" if st.session_state.card_virado else "#fff9db" # Verde se resposta, Amarelo se pergunta
-            
-            st.markdown(f"""
-            <div class="flashcard" style="background-color: {cor_fundo};">
-                <div>{conteudo}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            c_virar, c_prox = st.columns(2)
-            
-            if c_virar.button("🔄 Virar / Ver Resposta", use_container_width=True):
-                st.session_state.card_virado = not st.session_state.card_virado
-                st.rerun()
-                
-            if c_prox.button("➡️ Próximo Card", use_container_width=True):
-                st.session_state.card_atual = random.choice(st.session_state.flashcards)
-                st.session_state.card_virado = False
-                st.rerun()
-            
-            st.write("---")
-            st.caption(f"Total de cards: {len(st.session_state.flashcards)}")
+            bg = "#d1fae5" if st.session_state.card_virado else "#fff9db"
+            st.markdown(f"""<div class="flashcard" style="background:{bg}">{conteudo}</div>""", unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            if c1.button("🔄 Virar", use_container_width=True): st.session_state.card_virado = not st.session_state.card_virado; st.rerun()
+            if c2.button("➡️ Próximo", use_container_width=True): st.session_state.card_atual = random.choice(st.session_state.flashcards); st.session_state.card_virado = False; st.rerun()
 
 # ==========================================
-# 📊 ACOMPANHAMENTO (NOVA ABA)
+# 📊 ACOMPANHAMENTO
 # ==========================================
 elif menu == "📊 Acompanhamento":
-    st.title("📊 Estatísticas e Histórico")
-    
-    # Cálculos Gerais
+    st.title("📊 Estatísticas")
     total_horas = 0
     total_dias = len(st.session_state.historico_estudos)
-    
-    for data, valores in st.session_state.historico_estudos.items():
-        total_horas += valores[0]
+    for data, valores in st.session_state.historico_estudos.items(): total_horas += valores[0]
     
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Estudado", f"{int(total_horas)}h {int((total_horas%1)*60)}m")
@@ -368,16 +321,4 @@ elif menu == "📊 Acompanhamento":
     if total_dias > 0:
         media = total_horas / total_dias
         c3.metric("Média Diária", f"{int(media)}h {int((media%1)*60)}m")
-    else:
-        c3.metric("Média Diária", "0h")
-
-    st.divider()
-    
-    # Calendário Detalhado
-    st.subheader("📅 Calendário Detalhado")
-    if 'ano_cal' not in st.session_state: st.session_state.ano_cal = datetime.now().year; st.session_state.mes_cal = datetime.now().month
-    c_prev, c_mes, c_next = st.columns([1, 6, 1])
-    if c_prev.button("⬅️"): st.session_state.mes_cal -= 1
-    c_mes.markdown(f"<h4 style='text-align:center'>{MESES_PT.get(st.session_state.mes_cal, 'Mês')} {st.session_state.ano_cal}</h4>", unsafe_allow_html=True)
-    if c_next.button("➡️"): st.session_state.mes_cal += 1
-    desenhar_calendario(st.session_state.ano_cal, st.session_state.mes_cal)
+    else: c3.metric("Média Diária", "0h")
