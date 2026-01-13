@@ -30,7 +30,8 @@ def carregar_dados_usuario():
     arquivo = get_arquivo_db()
     # Padrões
     st.session_state.materias = {}
-    st.session_state.historico_estudos = {} # Formato: "YYYY-MM-DD": [horas, qtd, [lista_detalhada]]
+    st.session_state.historico_estudos = {} 
+    # Estrutura do Histórico: "YYYY-MM-DD": [total_horas, qtd_sessoes, [lista_detalhes]]
     st.session_state.ciclo_estudos = []
     st.session_state.flashcards = []
     st.session_state.revisoes = []
@@ -53,8 +54,10 @@ def carregar_dados_usuario():
 def salvar_dados():
     if not st.session_state.logado: return
     arquivo = get_arquivo_db()
+    # Garante listas vazias se não existirem
     if 'flashcards' not in st.session_state: st.session_state.flashcards = []
     if 'revisoes' not in st.session_state: st.session_state.revisoes = []
+    
     dados = {
         "materias": st.session_state.materias,
         "historico": st.session_state.historico_estudos,
@@ -99,7 +102,7 @@ if not st.session_state.logado:
 if 'sessao_estudo' not in st.session_state: st.session_state.sessao_estudo = None 
 if 'revisoes' not in st.session_state: st.session_state.revisoes = []
 
-# --- CSS INTELIGENTE ---
+# --- CSS ---
 st.markdown("""
 <style>
     .stSelectbox label { display: none; }
@@ -111,14 +114,18 @@ st.markdown("""
     .flashcard { background-color: #fff; color: #333; border: 2px solid #e2e8f0; border-radius: 15px; padding: 40px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); min-height: 200px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
     .mission-card { background-color: white; color: #333; border-left: 5px solid #6366f1; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
     
-    /* Botões do Calendário */
+    /* Botões do Calendário - Estilo Limpo */
     div[data-testid="stColumn"] > div > div > button {
         width: 100%;
-        height: 80px;
+        height: 70px;
         border-radius: 8px;
         border: 1px solid #eee;
         background-color: transparent;
         transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
     div[data-testid="stColumn"] > div > div > button:hover {
         border-color: #4299e1;
@@ -154,11 +161,14 @@ def formatar_relogio(segundos):
     s = int(segundos)
     return f"{s//3600:02d}:{(s%3600)//60:02d}:{s%60:02d}"
 
-# Função para abrir o Pop-up do Calendário
+# --- Pop-up do Calendário ---
 @st.dialog("📅 Histórico do Dia")
 def mostrar_detalhes_dia(data_str, dia_num, mes_nome):
+    # Formato: [horas, qtd, [lista_detalhes]]
     val = st.session_state.historico_estudos.get(data_str, [0, 0, []])
     h_val = val[0]
+    
+    # Compatibilidade com dados antigos que não tinham lista
     lista_detalhes = val[2] if len(val) > 2 else []
     
     st.markdown(f"### {dia_num} de {mes_nome}")
@@ -172,10 +182,11 @@ def mostrar_detalhes_dia(data_str, dia_num, mes_nome):
         c2.metric("Sessões", val[1])
         
         st.divider()
-        st.markdown("**O que você estudou:**")
+        st.subheader("O que você estudou:")
         if lista_detalhes:
             for item in lista_detalhes:
-                st.markdown(f"- {item}")
+                # Exibe cada matéria registrada
+                st.success(f"📚 {item}")
         else:
             st.caption("Detalhes não disponíveis para datas antigas.")
 
@@ -184,11 +195,9 @@ def desenhar_calendario_interativo(ano, mes):
     mes_days = cal.monthdayscalendar(ano, mes)
     dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
     
-    # Cabeçalho
     cols = st.columns(7)
-    for i, d in enumerate(dias): cols[i].markdown(f"<div style='text-align:center; font-weight:bold'>{d}</div>", unsafe_allow_html=True)
+    for i, d in enumerate(dias): cols[i].markdown(f"<div style='text-align:center; font-weight:bold; margin-bottom:5px'>{d}</div>", unsafe_allow_html=True)
     
-    # Dias
     for semana in mes_days:
         cols = st.columns(7)
         for i, dia in enumerate(semana):
@@ -197,44 +206,48 @@ def desenhar_calendario_interativo(ano, mes):
                 val = st.session_state.historico_estudos.get(chave, [0, 0])
                 h_val = val[0]
                 
-                # Label do botão
+                # Botão Limpo: Apenas Dia e, se estudou, um ícone discreto
                 label = f"{dia}"
-                emoji = ""
                 if h_val > 0:
                     h, m = int(h_val), int((h_val % 1) * 60)
-                    emoji = "✅"
-                    # Usamos help para mostrar resumo rápido ao passar o mouse
-                    if cols[i].button(f"{dia}\n{h}h{m}m", key=f"btn_cal_{chave}", use_container_width=True):
-                        mostrar_detalhes_dia(chave, dia, MESES_PT[mes])
-                else:
-                    if cols[i].button(f"{dia}", key=f"btn_cal_{chave}", use_container_width=True):
-                        mostrar_detalhes_dia(chave, dia, MESES_PT[mes])
+                    label = f"{dia}\n⏱️ {h}h{m}m"
+                
+                if cols[i].button(label, key=f"btn_cal_{chave}", use_container_width=True):
+                    mostrar_detalhes_dia(chave, dia, MESES_PT[mes])
             else:
                 cols[i].write("")
 
 # --- Sidebar ---
 st.sidebar.title("StudyHub Pro")
 st.sidebar.caption(f"👤 **{st.session_state.usuario_atual}**")
+if st.sidebar.button("🚪 Sair"): fazer_logout()
+st.sidebar.divider()
 
-# TIMER NA SIDEBAR (SEMPRE VISÍVEL)
+menu = st.sidebar.radio("Navegação", ["🏠 Home", "🔄 Revisões Táticas", "⚖️ Lei Seca", "🧠 Flashcards RPG", "📊 Acompanhamento"])
+st.sidebar.divider()
+
+# TIMER AGORA FICA AQUI (ABAIXO DO MENU)
 if st.session_state.sessao_estudo and st.session_state.sessao_estudo['rodando']:
     delta = (datetime.now() - st.session_state.sessao_estudo['inicio']).total_seconds()
     total = st.session_state.sessao_estudo['acumulado'] + delta
-    st.sidebar.success(f"⏱️ **{formatar_relogio(total)}**\n\n{st.session_state.sessao_estudo['materia']}")
     
-    # Atualiza ciclo background
+    # Caixa visual do Timer
+    st.sidebar.markdown(f"""
+    <div style="background-color:#1c4532; color:#4ade80; padding:15px; border-radius:10px; border:1px solid #22c55e; text-align:center; margin-bottom:20px;">
+        <div style="font-size:0.9rem; margin-bottom:5px;">Estudando Agora:</div>
+        <div style="font-weight:bold; font-size:1.1rem; color:white;">{st.session_state.sessao_estudo['materia']}</div>
+        <div style="font-size:1.8rem; font-weight:bold; margin-top:5px;">{formatar_relogio(total)}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Lógica de Ciclo Background
     idx = st.session_state.sessao_estudo.get('index_ciclo')
     if idx is not None and 0 <= idx < len(st.session_state.ciclo_estudos):
         st.session_state.ciclo_estudos[idx]['cumprido'] = total / 60
 else:
     st.sidebar.info("💤 Nenhuma sessão ativa")
 
-if st.sidebar.button("🚪 Sair"): fazer_logout()
-st.sidebar.divider()
-menu = st.sidebar.radio("Navegação", ["🏠 Home", "🔄 Revisões Táticas", "⚖️ Lei Seca", "🧠 Flashcards RPG", "📊 Acompanhamento"])
-st.sidebar.divider()
-
-# CONFIGURAÇÕES SEGURAS
+# CONFIGURAÇÕES SEGURAS (EXPANDER)
 with st.sidebar.expander("⚙️ Configurações"):
     st.warning("Zona de Perigo")
     if st.button("🗑️ Resetar Meus Dados", type="primary"):
@@ -249,7 +262,6 @@ with st.sidebar.expander("⚙️ Configurações"):
 if menu == "🏠 Home":
     st.title(f"Painel de {st.session_state.usuario_atual}")
     
-    # CALENDÁRIO INTERATIVO
     if 'ano_cal' not in st.session_state: st.session_state.ano_cal = datetime.now().year; st.session_state.mes_cal = datetime.now().month
     with st.expander("📅 Calendário de Estudos", expanded=True):
         c_prev, c_mes, c_next = st.columns([1, 6, 1])
@@ -306,16 +318,18 @@ if menu == "🏠 Home":
                 if k2.button("⏹", type="primary", use_container_width=True):
                     hj = datetime.now().strftime("%Y-%m-%d")
                     
-                    # Recupera dados anteriores
+                    # --- SALVAR DETALHES NO HISTÓRICO ---
+                    # Recupera dados do dia ou cria novos [horas, qtd, lista_detalhes]
                     val = st.session_state.historico_estudos.get(hj, [0, 0, []])
-                    # Garante formato novo (lista de detalhes na posição 2)
-                    if len(val) < 3: val.append([])
+                    if len(val) < 3: val.append([]) # Garante compatibilidade
                     
-                    # Atualiza
                     novo_tempo = val[0] + (total/3600)
                     nova_qtd = val[1] + 1
                     detalhes = val[2]
-                    detalhes.append(f"{d['materia']} ({d.get('conteudo', '')}): {formatar_tempo(total)}")
+                    
+                    # Cria a string detalhada: "Matemática (Álgebra) - 45m"
+                    detalhe_str = f"{d['materia']} ({d.get('conteudo', 'Geral')}) - {formatar_tempo(total)}"
+                    detalhes.append(detalhe_str)
                     
                     st.session_state.historico_estudos[hj] = [novo_tempo, nova_qtd, detalhes]
                     
@@ -323,7 +337,7 @@ if menu == "🏠 Home":
                         st.session_state.ciclo_estudos[d['index_ciclo']]['cumprido'] = total / 60
                         st.session_state.ciclo_estudos[d['index_ciclo']]['status'] = 'done'
                     
-                    # Revisões Automáticas
+                    # Revisões
                     data_rev1 = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
                     data_rev7 = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
                     st.session_state.revisoes.append({"materia": d['materia'], "conteudo": d.get('conteudo', 'Geral'), "data": data_rev1, "tipo": "24h", "status": "pendente"})
@@ -367,7 +381,6 @@ elif menu == "🔄 Revisões Táticas":
     xp = st.session_state.get('xp', 0)
     st.caption(f"XP Acumulado: {xp}")
     
-    # Abas de Pendentes e Histórico
     tab_pend, tab_hist = st.tabs(["🔥 Pendentes", "✅ Histórico Concluído"])
     
     with tab_pend:
@@ -397,11 +410,9 @@ elif menu == "🔄 Revisões Táticas":
 
     with tab_hist:
         concluidas = [r for r in st.session_state.revisoes if r['status'] == 'concluido']
-        if not concluidas:
-            st.info("Nenhuma revisão concluída ainda.")
+        if not concluidas: st.info("Nenhuma revisão concluída ainda.")
         else:
-            for rev in reversed(concluidas): # Mostra as últimas primeiro
-                st.markdown(f"✅ **{rev['materia']}** - {rev['conteudo']} ({rev['tipo']})")
+            for rev in reversed(concluidas): st.markdown(f"✅ **{rev['materia']}** - {rev['conteudo']} ({rev['tipo']})")
 
 # ==========================================
 # ⚖️ LEI SECA
