@@ -9,94 +9,100 @@ from datetime import datetime
 st.set_page_config(page_title="StudyHub Pro", page_icon="🎓", layout="wide")
 
 # ==========================================
-# 🔐 SISTEMA DE LOGIN (NOVO)
+# 🔐 SISTEMA DE LOGIN & DADOS SEPARADOS
 # ==========================================
 
-# Credenciais Definidas
 CREDENCIAIS = {
     "Odecielisom": "Fernanda",
     "Fernanda": "Odecielisom"
 }
 
-# Inicializa estado de login
-if 'logado' not in st.session_state:
-    st.session_state.logado = False
-if 'usuario_atual' not in st.session_state:
-    st.session_state.usuario_atual = ""
+# Inicializa estados de login
+if 'logado' not in st.session_state: st.session_state.logado = False
+if 'usuario_atual' not in st.session_state: st.session_state.usuario_atual = ""
+
+def get_arquivo_db():
+    """Retorna o nome do arquivo JSON baseado no usuário logado"""
+    if st.session_state.usuario_atual:
+        return f"dados_{st.session_state.usuario_atual}.json"
+    return "dados_temp.json"
+
+def carregar_dados_usuario():
+    """Carrega os dados específicos do usuário logado"""
+    arquivo = get_arquivo_db()
+    
+    # Padrão vazio
+    dados_padrao = {"materias": {}, "historico": {}, "ciclo": []}
+    
+    if os.path.exists(arquivo):
+        try:
+            with open(arquivo, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+                # Garante que as chaves existem (caso arquivo antigo)
+                st.session_state.materias = dados.get("materias", {})
+                st.session_state.historico_estudos = dados.get("historico", {})
+                st.session_state.ciclo_estudos = dados.get("ciclo", [])
+        except:
+            # Se der erro, inicia vazio
+            st.session_state.materias = {}
+            st.session_state.historico_estudos = {}
+            st.session_state.ciclo_estudos = []
+    else:
+        # Se arquivo não existe (primeiro acesso), inicia vazio
+        st.session_state.materias = {}
+        st.session_state.historico_estudos = {}
+        st.session_state.ciclo_estudos = []
+
+def salvar_dados():
+    """Salva no arquivo DO USUÁRIO ATUAL"""
+    if not st.session_state.logado: return
+    
+    arquivo = get_arquivo_db()
+    dados = {
+        "materias": st.session_state.materias,
+        "historico": st.session_state.historico_estudos,
+        "ciclo": st.session_state.ciclo_estudos
+    }
+    with open(arquivo, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=4)
 
 def verificar_login():
-    """Verifica usuário e senha"""
     user = st.session_state.input_usuario
     pwd = st.session_state.input_senha
     
     if user in CREDENCIAIS and CREDENCIAIS[user] == pwd:
         st.session_state.logado = True
         st.session_state.usuario_atual = user
+        # CARREGA OS DADOS DESSE USUÁRIO IMEDIATAMENTE
+        carregar_dados_usuario()
     else:
-        st.session_state.logado = False
         st.error("Usuário ou Senha incorretos")
 
-# SE NÃO ESTIVER LOGADO, MOSTRA TELA DE LOGIN E PARA TUDO
+def fazer_logout():
+    st.session_state.logado = False
+    st.session_state.usuario_atual = ""
+    st.session_state.materias = {}
+    st.session_state.historico_estudos = {}
+    st.session_state.ciclo_estudos = []
+    st.rerun()
+
+# --- TELA DE LOGIN ---
 if not st.session_state.logado:
-    st.markdown("""
-    <style>
-        .login-box {
-            max-width: 400px;
-            margin: 100px auto;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            background-color: white;
-            text-align: center;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("<div style='text-align: center;'><h1>🔐 Acesso Restrito</h1><p>StudyHub Pro</p></div>", unsafe_allow_html=True)
+    st.markdown("""<style>.login-box {max-width: 400px; margin: 100px auto; text-align: center;}</style>""", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        st.markdown("<h1 style='text-align: center;'>🔐 StudyHub</h1>", unsafe_allow_html=True)
+        st.info("Entre com sua conta pessoal")
         st.text_input("Usuário", key="input_usuario")
         st.text_input("Senha", type="password", key="input_senha")
         st.button("Entrar", on_click=verificar_login, type="primary", use_container_width=True)
-    
-    # O COMANDO MÁGICO: Para a execução aqui se não estiver logado
-    st.stop()
+    st.stop() # Para o código aqui se não logar
 
 # ==========================================
-# 🚀 APLICAÇÃO PRINCIPAL (SÓ CARREGA SE LOGADO)
+# 🚀 APLICAÇÃO PRINCIPAL
 # ==========================================
 
-# --- ARQUIVO DE BANCO DE DADOS ---
-# Dica: No futuro podemos criar um arquivo diferente para cada usuário
-ARQUIVO_DB = "dados_estudos.json"
-
-# --- Funções de Persistência ---
-def carregar_dados():
-    if not os.path.exists(ARQUIVO_DB):
-        return {"materias": {}, "historico": {}, "ciclo": []}
-    try:
-        with open(ARQUIVO_DB, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {"materias": {}, "historico": {}, "ciclo": []}
-
-def salvar_dados():
-    dados = {
-        "materias": st.session_state.materias,
-        "historico": st.session_state.historico_estudos,
-        "ciclo": st.session_state.ciclo_estudos
-    }
-    with open(ARQUIVO_DB, "w", encoding="utf-8") as f:
-        json.dump(dados, f, ensure_ascii=False, indent=4)
-
-# --- Inicialização ---
-if 'dados_carregados' not in st.session_state:
-    db = carregar_dados()
-    st.session_state.materias = db.get("materias", {})
-    st.session_state.historico_estudos = db.get("historico", {})
-    st.session_state.ciclo_estudos = db.get("ciclo", [])
-    st.session_state.dados_carregados = True
-
+# Se chegou aqui, está logado e com dados carregados!
 if 'sessao_estudo' not in st.session_state: st.session_state.sessao_estudo = None 
 
 # --- CSS ---
@@ -145,7 +151,7 @@ def desenhar_calendario(ano, mes):
                     val = st.session_state.historico_estudos.get(chave, [0, 0])
                     h_val, a_val = (val[0], val[1]) if isinstance(val, list) else (0,0)
                     if h_val > 0:
-                        h, m = seconds_to_hm(h_val * 3600)
+                        h, m = seconds_to_hm(h_val * 3600) 
                         st.markdown(f"""<div style="background-color:#eafce0;border-radius:6px;padding:8px;height:90px;">
                             <div style="font-weight:bold;color:#666;">{dia}</div>
                             <div style="font-size:12px;">📖 {a_val}<br>⏱️ {h}h{m:02d}m</div></div>""", unsafe_allow_html=True)
@@ -154,23 +160,22 @@ def desenhar_calendario(ano, mes):
 
 # --- Sidebar ---
 st.sidebar.title("StudyHub Pro")
+st.sidebar.markdown(f"👤 **{st.session_state.usuario_atual}**")
 
-# Mostra quem está logado
-st.sidebar.caption(f"👤 Olá, **{st.session_state.usuario_atual}**")
-
-# Botão de Sair (Logout)
-if st.sidebar.button("🚪 Sair"):
-    st.session_state.logado = False
-    st.session_state.usuario_atual = ""
-    st.rerun()
+if st.sidebar.button("🚪 Sair (Logout)"):
+    fazer_logout()
 
 st.sidebar.divider()
-
 menu = st.sidebar.radio("Menu", ["🏠 Home", "⏳ Pomodoro", "✅ Tarefas"])
+
 st.sidebar.divider()
-if st.sidebar.button("🗑️ Resetar Tudo"):
-    if os.path.exists(ARQUIVO_DB): os.remove(ARQUIVO_DB)
-    st.session_state.clear()
+# Resetar APENAS os dados do usuário atual
+if st.sidebar.button("🗑️ Resetar Meus Dados"):
+    arquivo_user = get_arquivo_db()
+    if os.path.exists(arquivo_user): os.remove(arquivo_user)
+    st.session_state.materias = {}
+    st.session_state.historico_estudos = {}
+    st.session_state.ciclo_estudos = []
     st.rerun()
 
 if st.session_state.sessao_estudo:
@@ -184,7 +189,7 @@ if st.session_state.sessao_estudo:
 
 # --- Home ---
 if menu == "🏠 Home":
-    st.title("🎓 Dashboard")
+    st.title(f"🎓 Dashboard de {st.session_state.usuario_atual}")
     
     if 'ano_cal' not in st.session_state: st.session_state.ano_cal = datetime.now().year; st.session_state.mes_cal = datetime.now().month
     with st.expander("📅 Calendário", expanded=True):
@@ -198,7 +203,7 @@ if menu == "🏠 Home":
     lista_materias = list(st.session_state.materias.keys())
     
     if not lista_materias:
-        st.info("👋 Cadastre sua primeira matéria abaixo para começar!")
+        st.info(f"👋 Olá {st.session_state.usuario_atual}! Comece cadastrando suas matérias.")
         c1, c2, c3 = st.columns([3,3,2])
         nm = c1.text_input("Nome da Matéria", key="init_nome")
         nc = c2.text_input("Primeiro Conteúdo", key="init_cont")
