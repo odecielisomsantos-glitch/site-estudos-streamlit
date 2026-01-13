@@ -28,12 +28,11 @@ def get_arquivo_db():
 
 def carregar_dados_usuario():
     arquivo = get_arquivo_db()
-    # Padrões
     st.session_state.materias = {}
     st.session_state.historico_estudos = {}
     st.session_state.ciclo_estudos = []
     st.session_state.flashcards = []
-    st.session_state.revisoes = [] # NOVO: Lista de revisões agendadas
+    st.session_state.revisoes = []
     st.session_state.xp = 0
     st.session_state.nivel = 1
 
@@ -45,7 +44,7 @@ def carregar_dados_usuario():
                 st.session_state.historico_estudos = dados.get("historico", {})
                 st.session_state.ciclo_estudos = dados.get("ciclo", [])
                 st.session_state.flashcards = dados.get("flashcards", [])
-                st.session_state.revisoes = dados.get("revisoes", []) # Carrega revisões
+                st.session_state.revisoes = dados.get("revisoes", [])
                 st.session_state.xp = dados.get("xp", 0)
                 st.session_state.nivel = dados.get("nivel", 1)
         except: pass
@@ -53,10 +52,8 @@ def carregar_dados_usuario():
 def salvar_dados():
     if not st.session_state.logado: return
     arquivo = get_arquivo_db()
-    # Garante existência das listas
     if 'flashcards' not in st.session_state: st.session_state.flashcards = []
     if 'revisoes' not in st.session_state: st.session_state.revisoes = []
-    
     dados = {
         "materias": st.session_state.materias,
         "historico": st.session_state.historico_estudos,
@@ -101,36 +98,56 @@ if not st.session_state.logado:
 if 'sessao_estudo' not in st.session_state: st.session_state.sessao_estudo = None 
 if 'revisoes' not in st.session_state: st.session_state.revisoes = []
 
-# --- CSS ---
+# --- CSS INTELIGENTE (LIGHT & DARK MODE) ---
 st.markdown("""
 <style>
     .stSelectbox label { display: none; }
     div[data-testid="stExpander"] { border: 1px solid #e2e8f0; border-radius: 8px; }
     
-    /* RPG & Cards */
+    /* --- CORES BASE (LIGHT MODE - PADRÃO) --- */
+    .rpg-card { background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%); color: #1f2937; border: 1px solid #e5e7eb; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); padding: 40px; text-align: center; min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .etapa-card { background-color: white; color: #333; padding: 15px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+    .flashcard { background-color: #fff; color: #333; border: 2px solid #e2e8f0; border-radius: 15px; padding: 40px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); min-height: 200px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+    .mission-card { background-color: white; color: #333; border-left: 5px solid #6366f1; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+    
+    /* Calendário Base */
+    .cal-card-active { background-color: #eafce0; color: #333; border-radius: 6px; padding: 8px; height: 90px; border: 1px solid #c6f6d5; }
+    .cal-card-empty { background-color: #f9f9f9; color: #ccc; border-radius: 6px; padding: 8px; height: 90px; border: 1px solid #eee; }
+    
+    .big-percent { font-size: 3rem; font-weight: bold; color: #333; line-height: 1;}
+    .item-title { font-size: 1.1rem; font-weight: 600; color: #444; }
+    
+    /* --- DARK MODE OVERRIDES (QUANDO O MODO ESCURO ATIVA) --- */
+    @media (prefers-color-scheme: dark) {
+        /* Cards Gerais */
+        .rpg-card { background: linear-gradient(135deg, #262730 0%, #1f1f1f 100%); color: #fafafa; border: 1px solid #444; }
+        .etapa-card { background-color: #262730; color: #fafafa; border: 1px solid #444; }
+        .flashcard { background-color: #262730; color: #fafafa; border: 2px solid #444; }
+        .mission-card { background-color: #262730; color: #fafafa; border-left: 5px solid #818cf8; }
+        
+        /* Calendário Dark */
+        .cal-card-active { background-color: #064e3b; color: #ecfdf5; border: 1px solid #059669; }
+        .cal-card-empty { background-color: #1e1e1e; color: #555; border: 1px solid #333; }
+        
+        /* Textos */
+        .big-percent { color: #fafafa; }
+        .item-title { color: #e5e7eb; }
+        
+        /* Ajustes do Streamlit Nativo */
+        div[data-testid="stExpander"] { background-color: #262730; border-color: #444; color: white; }
+    }
+
+    /* Elementos Comuns */
     .rpg-card-container { perspective: 1000px; margin-top: 20px; }
-    .rpg-card { background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%); border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); padding: 40px; text-align: center; min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid #e5e7eb; transition: transform 0.3s; }
     .rpg-card:hover { transform: translateY(-5px); }
     .card-category { background-color: #e0f2fe; color: #0369a1; padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
-    .card-text { font-size: 1.6rem; font-weight: 600; color: #1f2937; line-height: 1.4; }
-    
-    /* Bars & Pills */
+    .card-text { font-size: 1.6rem; font-weight: 600; line-height: 1.4; }
     .xp-bar-bg { background: #e5e7eb; height: 10px; border-radius: 5px; width: 100%; margin-top: 5px; }
     .xp-bar-fill { background: linear-gradient(90deg, #8b5cf6, #ec4899); height: 100%; border-radius: 5px; }
     .threat-pill { display: inline-block; background-color: #fee2e2; color: #991b1b; padding: 5px 12px; border-radius: 15px; font-size: 0.85rem; margin-right: 8px; margin-bottom: 8px; border: 1px solid #fecaca; font-weight: 600; }
-    
-    /* Mission Card (Revisão) */
-    .mission-card {
-        background-color: white;
-        border-left: 5px solid #6366f1; /* Indigo */
-        padding: 15px;
-        margin-bottom: 10px;
-        border-radius: 5px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
+    .progress-bg { background-color: #ddd; border-radius: 10px; height: 10px; width: 100%; margin: 5px 0; }
+    .progress-fill { background-color: #ffeb3b; height: 100%; border-radius: 10px; transition: width 0.5s ease-in-out; }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -159,20 +176,26 @@ def desenhar_calendario(ano, mes):
                     chave = f"{ano}-{mes:02d}-{dia:02d}"
                     val = st.session_state.historico_estudos.get(chave, [0, 0])
                     h_val, a_val = (val[0], val[1]) if isinstance(val, list) else (0,0)
+                    
+                    # Usa classes CSS em vez de style inline fixo
                     if h_val > 0:
                         h, m = int(h_val), int((h_val % 1) * 60)
-                        st.markdown(f"""<div style="background-color:#eafce0;border-radius:6px;padding:8px;height:90px;">
-                            <div style="font-weight:bold;color:#666;">{dia}</div>
-                            <div style="font-size:12px;">📖 {a_val}<br>⏱️ {h}h{m:02d}m</div></div>""", unsafe_allow_html=True)
+                        st.markdown(f"""
+                        <div class="cal-card-active">
+                            <div style="font-weight:bold;">{dia}</div>
+                            <div style="font-size:12px;">📖 {a_val}<br>⏱️ {h}h{m:02d}m</div>
+                        </div>""", unsafe_allow_html=True)
                     else:
-                         st.markdown(f"""<div style="background-color:#f9f9f9;border-radius:6px;padding:8px;height:90px;"><div style="color:#ccc;">{dia}</div></div>""", unsafe_allow_html=True)
+                         st.markdown(f"""
+                         <div class="cal-card-empty">
+                            <div>{dia}</div>
+                         </div>""", unsafe_allow_html=True)
 
 # --- Sidebar ---
 st.sidebar.title("StudyHub Pro")
 st.sidebar.caption(f"👤 **{st.session_state.usuario_atual}**")
 if st.sidebar.button("🚪 Sair"): fazer_logout()
 st.sidebar.divider()
-# MENU ATUALIZADO
 menu = st.sidebar.radio("Navegação", ["🏠 Home", "🔄 Revisões Táticas", "⚖️ Lei Seca", "🧠 Flashcards RPG", "📊 Acompanhamento"])
 st.sidebar.divider()
 if st.sidebar.button("🗑️ Resetar Meus Dados"):
@@ -214,7 +237,6 @@ if menu == "🏠 Home":
         if st.button("Salvar Inicial", type="primary"):
              if nm and nc: st.session_state.materias[nm] = [nc]; salvar_dados(); st.rerun()
     else:
-        # PLAYER
         st.subheader("🚀 Sessão Ativa")
         with st.container(border=True):
             if st.session_state.sessao_estudo is None:
@@ -249,35 +271,23 @@ if menu == "🏠 Home":
                 else:
                     if k1.button("▶", use_container_width=True): d['inicio'] = datetime.now(); d['rodando'] = True; st.rerun()
                 
-                # --- BOTÃO FINALIZAR (COM AGENDAMENTO AUTOMÁTICO) ---
                 if k2.button("⏹", type="primary", use_container_width=True):
                     hj = datetime.now().strftime("%Y-%m-%d")
-                    # 1. Salva histórico
                     val = st.session_state.historico_estudos.get(hj, [0, 0])
                     st.session_state.historico_estudos[hj] = [val[0] + (total/3600), val[1] + 1]
-                    # 2. Atualiza ciclo
                     if d.get('index_ciclo') is not None:
                         st.session_state.ciclo_estudos[d['index_ciclo']]['cumprido'] = total / 60
                         st.session_state.ciclo_estudos[d['index_ciclo']]['status'] = 'done'
                     
-                    # 3. AGENDA REVISÕES AUTOMÁTICAS (24h e 7 Dias)
                     data_rev1 = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
                     data_rev7 = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
-                    
-                    st.session_state.revisoes.append({
-                        "materia": d['materia'], "conteudo": d.get('conteudo', 'Geral'),
-                        "data": data_rev1, "tipo": "24h", "status": "pendente"
-                    })
-                    st.session_state.revisoes.append({
-                        "materia": d['materia'], "conteudo": d.get('conteudo', 'Geral'),
-                        "data": data_rev7, "tipo": "7 Dias", "status": "pendente"
-                    })
+                    st.session_state.revisoes.append({"materia": d['materia'], "conteudo": d.get('conteudo', 'Geral'), "data": data_rev1, "tipo": "24h", "status": "pendente"})
+                    st.session_state.revisoes.append({"materia": d['materia'], "conteudo": d.get('conteudo', 'Geral'), "data": data_rev7, "tipo": "7 Dias", "status": "pendente"})
                     
                     st.session_state.sessao_estudo = None; salvar_dados(); st.rerun()
                 
                 if d['rodando']: time.sleep(1); st.rerun()
 
-        # CICLO
         st.write("##")
         t_meta = sum([i['meta'] for i in st.session_state.ciclo_estudos])
         t_cump = sum([i.get('cumprido', 0) for i in st.session_state.ciclo_estudos])
@@ -305,63 +315,35 @@ if menu == "🏠 Home":
             if st.button("Limpar Ciclo"): st.session_state.ciclo_estudos = []; salvar_dados(); st.rerun()
 
 # ==========================================
-# 🔄 REVISÕES TÁTICAS (NOVO!)
+# 🔄 REVISÕES TÁTICAS
 # ==========================================
 elif menu == "🔄 Revisões Táticas":
     st.title("🔄 Centro de Comando: Revisões")
-    
     xp = st.session_state.get('xp', 0)
     st.caption(f"XP Acumulado: {xp}")
-    
     hoje_str = datetime.now().strftime("%Y-%m-%d")
-    
-    # Filtra revisões pendentes até hoje
     revisoes_pendentes = [r for r in st.session_state.revisoes if r['data'] <= hoje_str and r['status'] == 'pendente']
     
     if not revisoes_pendentes:
         st.success("Tudo limpo, Comandante! Nenhuma revisão pendente para hoje.")
     else:
-        # --- RADAR DE AMEAÇAS (REVISÕES) ---
         st.subheader("📡 Radar de Pendências")
         contagem = {}
-        for r in revisoes_pendentes:
-            m = r['materia']
-            contagem[m] = contagem.get(m, 0) + 1
-        
+        for r in revisoes_pendentes: m = r['materia']; contagem[m] = contagem.get(m, 0) + 1
         html_pills = ""
-        for mat, qtd in contagem.items():
-            html_pills += f"<span class='threat-pill'>{mat}: {qtd}</span>"
+        for mat, qtd in contagem.items(): html_pills += f"<span class='threat-pill'>{mat}: {qtd}</span>"
         st.markdown(f"<div>{html_pills}</div>", unsafe_allow_html=True)
         st.write("---")
-        
-        # LISTA DE MISSÕES
         st.subheader("📋 Missões do Dia")
         for i, rev in enumerate(revisoes_pendentes):
-            # Encontra o índice original na lista completa para editar
             idx_orig = st.session_state.revisoes.index(rev)
-            
-            # Card Visual
             col_info, col_btn = st.columns([5, 1])
             with col_info:
-                st.markdown(f"""
-                <div class="mission-card">
-                    <div>
-                        <strong style="font-size:1.1rem">{rev['materia']}</strong> <span style="color:#666">({rev['conteudo']})</span>
-                    </div>
-                    <div style="background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:4px; font-size:0.8rem">
-                        Revisão de {rev['tipo']}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
+                st.markdown(f"""<div class="mission-card"><div><strong style="font-size:1.1rem">{rev['materia']}</strong> <span style="opacity:0.8">({rev['conteudo']})</span></div><div style="background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:4px; font-size:0.8rem">{rev['tipo']}</div></div>""", unsafe_allow_html=True)
             with col_btn:
                 st.write("")
                 if st.button("✅ Feito", key=f"rev_ok_{i}"):
-                    st.session_state.revisoes[idx_orig]['status'] = 'concluido'
-                    st.session_state.xp += 50
-                    st.toast("Revisão Concluída! +50 XP", icon="🎖️")
-                    salvar_dados()
-                    st.rerun()
+                    st.session_state.revisoes[idx_orig]['status'] = 'concluido'; st.session_state.xp += 50; st.toast("Revisão Concluída! +50 XP", icon="🎖️"); salvar_dados(); st.rerun()
 
 # ==========================================
 # ⚖️ LEI SECA
@@ -391,12 +373,10 @@ elif menu == "🧠 Flashcards RPG":
     nivel = st.session_state.get('nivel', 1)
     xp_prox = nivel * 100
     prog = (xp / xp_prox) * 100
-    
     c_lvl, c_bar = st.columns([1, 4])
     c_lvl.markdown(f"<h2 style='margin:0'>🛡️ Lvl {nivel}</h2>", unsafe_allow_html=True)
     c_bar.markdown(f"""<div style="margin-top:10px;"><span style="font-weight:bold; color:#666">{xp} / {xp_prox} XP</span><div class="xp-bar-bg"><div class="xp-bar-fill" style="width:{min(prog, 100)}%"></div></div></div>""", unsafe_allow_html=True)
     st.divider()
-
     tab_arena, tab_forja, tab_lib = st.tabs(["⚔️ A Arena (Estudar)", "⚒️ A Forja (Criar)", "📜 Biblioteca"])
     
     with tab_forja:
@@ -418,18 +398,13 @@ elif menu == "🧠 Flashcards RPG":
         else:
             st.markdown("### 📡 Radar de Ameaças")
             contagem = {}
-            for c in cards_para_hoje:
-                m = c.get('materia', 'Geral')
-                contagem[m] = contagem.get(m, 0) + 1
+            for c in cards_para_hoje: m = c.get('materia', 'Geral'); contagem[m] = contagem.get(m, 0) + 1
             html_pills = ""
             for mat, qtd in contagem.items(): html_pills += f"<span class='threat-pill'>{mat}: {qtd}</span>"
             st.markdown(f"<div>{html_pills}</div>", unsafe_allow_html=True)
             st.write("") 
             
-            if 'card_batalha' not in st.session_state:
-                st.session_state.card_batalha = random.choice(cards_para_hoje)
-                st.session_state.card_revelado = False
-            
+            if 'card_batalha' not in st.session_state: st.session_state.card_batalha = random.choice(cards_para_hoje); st.session_state.card_revelado = False
             card = st.session_state.card_batalha
             st.markdown(f"""<div class="rpg-card-container"><div class="rpg-card"><span class="card-category">{card.get('materia', 'Geral')}</span><div class="card-text">{card['pergunta']}</div></div></div>""", unsafe_allow_html=True)
             st.write("##")
