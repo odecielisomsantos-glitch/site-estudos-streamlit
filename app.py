@@ -4,10 +4,19 @@ import calendar
 import json
 import os
 import random
+import pytz # Biblioteca de Fuso Horário
 from datetime import datetime, timedelta
 
 # --- Configuração Inicial ---
 st.set_page_config(page_title="StudyHub Pro", page_icon="🎓", layout="wide")
+
+# ==========================================
+# 🕒 FUNÇÃO DE TEMPO (BRASÍLIA)
+# ==========================================
+def agora_br():
+    """Retorna a data e hora atual no fuso de São Paulo/Brasília"""
+    fuso_br = pytz.timezone('America/Sao_Paulo')
+    return datetime.now(fuso_br)
 
 # ==========================================
 # 🔐 SISTEMA DE LOGIN & DADOS
@@ -28,6 +37,7 @@ def get_arquivo_db():
 
 def carregar_dados_usuario():
     arquivo = get_arquivo_db()
+    # Padrões
     st.session_state.materias = {}
     st.session_state.historico_estudos = {} 
     st.session_state.ciclo_estudos = []
@@ -98,28 +108,27 @@ if not st.session_state.logado:
 if 'sessao_estudo' not in st.session_state: st.session_state.sessao_estudo = None 
 if 'revisoes' not in st.session_state: st.session_state.revisoes = []
 
-# --- CSS AVANÇADO (CALENDÁRIO ESTILO PLANNER) ---
+# --- CSS AVANÇADO ---
 st.markdown("""
 <style>
     .stSelectbox label { display: none; }
     div[data-testid="stExpander"] { border: 1px solid #e2e8f0; border-radius: 8px; }
     
-    /* 1. ESTILO GERAL DOS BOTÕES DO CALENDÁRIO */
+    /* 1. CALENDÁRIO ESTILO CLEAN */
     div[data-testid="stColumn"] > div > div > button {
-        height: 110px; /* Altura fixa para ficar quadrado/retangular */
+        height: 110px;
         width: 100%;
-        border-radius: 0px; /* Bordas retas para parecer grade */
+        border-radius: 0px;
         border: 1px solid #e0e0e0;
         display: flex;
         flex-direction: column;
-        align-items: flex-start !important; /* Alinha texto no topo esquerda */
+        align-items: flex-start !important;
         justify-content: flex-start !important;
         padding: 8px !important;
         font-size: 0.9rem;
         transition: all 0.2s;
     }
-
-    /* 2. DIAS VAZIOS (Botão Secondary) */
+    /* Dia Vazio */
     div[data-testid="stColumn"] > div > div > button[kind="secondary"] {
         background-color: #ffffff;
         color: #555;
@@ -128,47 +137,44 @@ st.markdown("""
         background-color: #f7fafc;
         border-color: #cbd5e0;
     }
-
-    /* 3. DIAS COM ESTUDO (Botão Primary - FORÇANDO VERDE) */
+    /* Dia com Estudo (Força Verde) */
     div[data-testid="stColumn"] > div > div > button[kind="primary"] {
-        background-color: #e6fffa !important; /* Verde claro fundo */
+        background-color: #e6fffa !important;
         border: 1px solid #b2f5ea !important;
-        color: #234e52 !important; /* Verde escuro texto */
+        color: #234e52 !important;
     }
     div[data-testid="stColumn"] > div > div > button[kind="primary"]:hover {
         background-color: #b2f5ea !important;
         transform: scale(1.02);
         z-index: 2;
     }
-    div[data-testid="stColumn"] > div > div > button[kind="primary"] p {
-        font-size: 0.8rem;
-        line-height: 1.4;
-    }
 
-    /* --- DARK MODE ADJUSTMENTS --- */
+    /* DARK MODE */
     @media (prefers-color-scheme: dark) {
-        /* Vazio Dark */
         div[data-testid="stColumn"] > div > div > button[kind="secondary"] {
             background-color: #1e1e1e;
             border-color: #333;
             color: #aaa;
         }
-        /* Ativo Dark (Verde Musgo) */
         div[data-testid="stColumn"] > div > div > button[kind="primary"] {
             background-color: #064e3b !important;
             border-color: #059669 !important;
             color: #ecfdf5 !important;
         }
         .rpg-card { background: linear-gradient(135deg, #262730 0%, #1f1f1f 100%); color: #fafafa; border: 1px solid #444; }
-        .mission-card { background-color: #262730; color: #fafafa; border-left: 5px solid #818cf8; }
         .etapa-card { background-color: #262730; color: #fafafa; border: 1px solid #444; }
+        .flashcard { background-color: #262730; color: #fafafa; border: 2px solid #444; }
+        .mission-card { background-color: #262730; color: #fafafa; border-left: 5px solid #818cf8; }
     }
 
-    /* Outros Estilos (RPG, Cards) */
+    /* Outros Elementos */
     .rpg-card { background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%); color: #1f2937; border: 1px solid #e5e7eb; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); padding: 40px; text-align: center; min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
     .mission-card { background-color: white; color: #333; border-left: 5px solid #6366f1; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
     .etapa-card { background-color: white; color: #333; padding: 15px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     .big-percent { font-size: 3rem; font-weight: bold; line-height: 1;}
+    .xp-bar-bg { background: #e5e7eb; height: 10px; border-radius: 5px; width: 100%; margin-top: 5px; }
+    .xp-bar-fill { background: linear-gradient(90deg, #8b5cf6, #ec4899); height: 100%; border-radius: 5px; }
+    .threat-pill { display: inline-block; background-color: #fee2e2; color: #991b1b; padding: 5px 12px; border-radius: 15px; font-size: 0.85rem; margin-right: 8px; margin-bottom: 8px; border: 1px solid #fecaca; font-weight: 600; }
     .progress-bg { background-color: #ddd; border-radius: 10px; height: 10px; width: 100%; margin: 5px 0; }
     .progress-fill { background-color: #ffeb3b; height: 100%; border-radius: 10px; transition: width 0.5s ease-in-out; }
 </style>
@@ -201,26 +207,20 @@ def mostrar_detalhes_dia(data_str, dia_num, mes_nome):
         c1, c2 = st.columns(2)
         c1.metric("Tempo Total", f"{h}h {m}m")
         c2.metric("Sessões", val[1])
-        
         st.divider()
         st.subheader("Histórico:")
         if lista_detalhes:
-            for item in lista_detalhes:
-                st.success(f"📚 {item}")
-        else:
-            st.caption("Sem detalhes salvos.")
+            for item in lista_detalhes: st.success(f"📚 {item}")
+        else: st.caption("Sem detalhes salvos.")
 
 def desenhar_calendario_interativo(ano, mes):
     cal = calendar.Calendar(firstweekday=6)
     mes_days = cal.monthdayscalendar(ano, mes)
     dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
     
-    # Cabeçalho dos dias
     cols = st.columns(7)
-    for i, d in enumerate(dias): 
-        cols[i].markdown(f"<div style='text-align:center; font-weight:bold; color:#888; font-size:0.8rem; margin-bottom:5px'>{d}</div>", unsafe_allow_html=True)
+    for i, d in enumerate(dias): cols[i].markdown(f"<div style='text-align:center; font-weight:bold; color:#888; font-size:0.8rem; margin-bottom:5px'>{d}</div>", unsafe_allow_html=True)
     
-    # Grade
     for semana in mes_days:
         cols = st.columns(7)
         for i, dia in enumerate(semana):
@@ -228,33 +228,29 @@ def desenhar_calendario_interativo(ano, mes):
                 chave = f"{ano}-{mes:02d}-{dia:02d}"
                 val = st.session_state.historico_estudos.get(chave, [0, 0])
                 h_val = val[0]
-                qtd_sess = val[1]
-                
-                # Configuração do Botão
-                # Se tem estudo (>0), usamos type="primary" (que nosso CSS pinta de verde)
-                # Se não, type="secondary" (branco/cinza)
                 tipo_btn = "primary" if h_val > 0 else "secondary"
                 
-                # Texto do Botão
+                label = f"{dia}"
                 if h_val > 0:
                     h, m = int(h_val), int((h_val % 1) * 60)
-                    # \n\n força quebra de linha para empurrar infos para baixo
-                    label = f"{dia}\n\n📖 {qtd_sess} Ativ.\n⏱️ {h}h{m:02d}m"
-                else:
-                    label = f"{dia}"
+                    label = f"{dia}\n\n📖 {val[1]} Ativ.\n⏱️ {h}h{m:02d}m"
                 
                 if cols[i].button(label, key=f"cal_{chave}", type=tipo_btn, use_container_width=True):
                     mostrar_detalhes_dia(chave, dia, MESES_PT[mes])
-            else:
-                cols[i].write("") # Espaço vazio para dias de outros meses
+            else: cols[i].write("")
 
 # --- Sidebar ---
 st.sidebar.title("StudyHub Pro")
 st.sidebar.caption(f"👤 **{st.session_state.usuario_atual}**")
 
-# TIMER NA SIDEBAR (Abaixo do Perfil)
+# TIMER NA SIDEBAR (Tempo Real BR)
 if st.session_state.sessao_estudo and st.session_state.sessao_estudo['rodando']:
-    delta = (datetime.now() - st.session_state.sessao_estudo['inicio']).total_seconds()
+    # Calcula delta usando o tempo atual BR e o tempo de inicio (que já deve estar em BR se iniciado corretamente, senão corrige)
+    inicio = st.session_state.sessao_estudo['inicio']
+    if inicio.tzinfo is None: # Compatibilidade
+        inicio = pytz.timezone('America/Sao_Paulo').localize(inicio)
+    
+    delta = (agora_br() - inicio).total_seconds()
     total = st.session_state.sessao_estudo['acumulado'] + delta
     
     st.sidebar.markdown(f"""
@@ -262,10 +258,8 @@ if st.session_state.sessao_estudo and st.session_state.sessao_estudo['rodando']:
         <div style="font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:5px;">Estudando</div>
         <div style="font-weight:bold; font-size:1.1rem; color:white; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{st.session_state.sessao_estudo['materia']}</div>
         <div style="font-size:1.8rem; font-weight:bold; margin-top:5px; font-family:monospace;">{formatar_relogio(total)}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
     
-    # Update Background
     idx = st.session_state.sessao_estudo.get('index_ciclo')
     if idx is not None and 0 <= idx < len(st.session_state.ciclo_estudos):
         st.session_state.ciclo_estudos[idx]['cumprido'] = total / 60
@@ -274,10 +268,8 @@ else:
 
 if st.sidebar.button("🚪 Sair"): fazer_logout()
 st.sidebar.divider()
-
 menu = st.sidebar.radio("Navegação", ["🏠 Home", "🔄 Revisões Táticas", "⚖️ Lei Seca", "🧠 Flashcards RPG", "📊 Acompanhamento"])
 st.sidebar.divider()
-
 with st.sidebar.expander("⚙️ Configurações"):
     st.warning("Zona de Perigo")
     if st.button("🗑️ Resetar Meus Dados", type="primary"):
@@ -292,22 +284,22 @@ with st.sidebar.expander("⚙️ Configurações"):
 if menu == "🏠 Home":
     st.title(f"Painel de {st.session_state.usuario_atual}")
     
-    if 'ano_cal' not in st.session_state: st.session_state.ano_cal = datetime.now().year; st.session_state.mes_cal = datetime.now().month
+    hj_br = agora_br()
+    if 'ano_cal' not in st.session_state: st.session_state.ano_cal = hj_br.year; st.session_state.mes_cal = hj_br.month
     
-    # Calendário mais limpo (sem a borda padrão do expander se possível, mas mantendo a função)
     with st.expander("📅 Calendário de Estudos", expanded=True):
         c_prev, c_mes, c_next = st.columns([1, 6, 1])
         if c_prev.button("⬅️"): st.session_state.mes_cal -= 1
         c_mes.markdown(f"<h3 style='text-align:center; margin:0'>{MESES_PT.get(st.session_state.mes_cal, 'Mês')} {st.session_state.ano_cal}</h3>", unsafe_allow_html=True)
         if c_next.button("➡️"): st.session_state.mes_cal += 1
-        st.write("") # Espaçamento
+        st.write("")
         desenhar_calendario_interativo(st.session_state.ano_cal, st.session_state.mes_cal)
     
     st.divider()
 
     lista_materias = list(st.session_state.materias.keys())
     if not lista_materias:
-        st.warning("Cadastre suas matérias abaixo para liberar o sistema.")
+        st.warning("Cadastre suas matérias abaixo.")
         c1, c2 = st.columns(2)
         nm = c1.text_input("Matéria")
         nc = c2.text_input("Conteúdo")
@@ -322,7 +314,8 @@ if menu == "🏠 Home":
                 c = c2.selectbox("Conteúdo", st.session_state.materias.get(m, ["Geral"]), key="s_c")
                 mt = c3.number_input("Meta", 5, 120, 45, key="s_mt", label_visibility="collapsed")
                 if c4.button("▶ Iniciar", type="primary", use_container_width=True):
-                    st.session_state.sessao_estudo = {"materia": m, "conteudo": c, "meta": mt, "inicio": datetime.now(), "acumulado": 0, "rodando": True, "index_ciclo": None}
+                    # Inicia com horário BR
+                    st.session_state.sessao_estudo = {"materia": m, "conteudo": c, "meta": mt, "inicio": agora_br(), "acumulado": 0, "rodando": True, "index_ciclo": None}
                     st.rerun()
                 
                 with st.expander("⚙️ Gerenciar Matérias"):
@@ -338,7 +331,12 @@ if menu == "🏠 Home":
                         if st.button("Confirmar", key="b_dl"): del st.session_state.materias[md]; salvar_dados(); st.rerun()
             else:
                 d = st.session_state.sessao_estudo
-                total = d['acumulado'] + ((datetime.now()-d['inicio']).total_seconds() if d['rodando'] else 0)
+                # Cálculo do tempo com Fuso BR
+                inicio = d['inicio']
+                if inicio.tzinfo is None: inicio = pytz.timezone('America/Sao_Paulo').localize(inicio)
+                
+                total = d['acumulado'] + ((agora_br() - inicio).total_seconds() if d['rodando'] else 0)
+                
                 c1, c2, c3 = st.columns([3, 4, 3])
                 c1.markdown(f"### {d['materia']}"); c1.progress(min(total / (d['meta']*60), 1.0))
                 c2.markdown(f"<h1 style='color:{'#48bb78' if d['rodando'] else '#ecc94b'};text-align:center;margin:0'>{formatar_relogio(total)}</h1>", unsafe_allow_html=True)
@@ -346,10 +344,11 @@ if menu == "🏠 Home":
                 if d['rodando']:
                     if k1.button("⏸", use_container_width=True): d['acumulado'] = total; d['rodando'] = False; st.rerun()
                 else:
-                    if k1.button("▶", use_container_width=True): d['inicio'] = datetime.now(); d['rodando'] = True; st.rerun()
+                    if k1.button("▶", use_container_width=True): d['inicio'] = agora_br(); d['rodando'] = True; st.rerun()
                 
                 if k2.button("⏹", type="primary", use_container_width=True):
-                    hj = datetime.now().strftime("%Y-%m-%d")
+                    # Data BR
+                    hj = agora_br().strftime("%Y-%m-%d")
                     val = st.session_state.historico_estudos.get(hj, [0, 0, []])
                     if len(val) < 3: val.append([])
                     
@@ -357,21 +356,19 @@ if menu == "🏠 Home":
                     nova_qtd = val[1] + 1
                     detalhes = val[2]
                     detalhes.append(f"{d['materia']} ({d.get('conteudo', 'Geral')}) - {formatar_tempo(total)}")
-                    
                     st.session_state.historico_estudos[hj] = [novo_tempo, nova_qtd, detalhes]
                     
                     if d.get('index_ciclo') is not None:
                         st.session_state.ciclo_estudos[d['index_ciclo']]['cumprido'] = total / 60
                         st.session_state.ciclo_estudos[d['index_ciclo']]['status'] = 'done'
                     
-                    # Agendamento Revisão
-                    data_rev1 = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-                    data_rev7 = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
+                    # Agendamento Revisão (BR Time)
+                    now_br = agora_br()
+                    data_rev1 = (now_br + timedelta(days=1)).strftime("%Y-%m-%d")
+                    data_rev7 = (now_br + timedelta(days=7)).strftime("%Y-%m-%d")
                     st.session_state.revisoes.append({"materia": d['materia'], "conteudo": d.get('conteudo', 'Geral'), "data": data_rev1, "tipo": "24h", "status": "pendente"})
                     st.session_state.revisoes.append({"materia": d['materia'], "conteudo": d.get('conteudo', 'Geral'), "data": data_rev7, "tipo": "7 Dias", "status": "pendente"})
-                    
                     st.session_state.sessao_estudo = None; salvar_dados(); st.rerun()
-                
                 if d['rodando']: time.sleep(1); st.rerun()
 
         st.write("##")
@@ -396,7 +393,7 @@ if menu == "🏠 Home":
                 cc, cb = st.columns([5, 1])
                 cc.markdown(f"""<div class="etapa-card"><div style="display:flex;justify-content:space-between;"><b>{item['materia']}</b><span>{item['meta']}m</span></div><div class="progress-bg" style="height:6px"><div class="progress-fill" style="width:{min(pi,100)}%;background:{cor}"></div></div></div>""", unsafe_allow_html=True)
                 if not st.session_state.sessao_estudo and pi < 100 and cb.button("▶", key=f"pc_{i}"):
-                    st.session_state.sessao_estudo = {"materia": item['materia'], "meta": item['meta'], "inicio": datetime.now(), "acumulado": item.get('cumprido',0)*60, "rodando": True, "index_ciclo": i, "conteudo": "Ciclo"}
+                    st.session_state.sessao_estudo = {"materia": item['materia'], "meta": item['meta'], "inicio": agora_br(), "acumulado": item.get('cumprido',0)*60, "rodando": True, "index_ciclo": i, "conteudo": "Ciclo"}
                     item['status'] = 'active'; salvar_dados(); st.rerun()
             if st.button("Limpar Ciclo"): st.session_state.ciclo_estudos = []; salvar_dados(); st.rerun()
 
@@ -411,27 +408,23 @@ elif menu == "🔄 Revisões Táticas":
     tab_pend, tab_hist = st.tabs(["🔥 Pendentes", "✅ Histórico"])
     
     with tab_pend:
-        hoje_str = datetime.now().strftime("%Y-%m-%d")
+        hoje_str = agora_br().strftime("%Y-%m-%d")
         revisoes_pendentes = [r for r in st.session_state.revisoes if r['data'] <= hoje_str and r['status'] == 'pendente']
-        if not revisoes_pendentes:
-            st.success("Tudo em dia! Nenhuma revisão para hoje.")
+        if not revisoes_pendentes: st.success("Tudo em dia!")
         else:
             st.subheader("Radar de Pendências")
             contagem = {}
             for r in revisoes_pendentes: m = r['materia']; contagem[m] = contagem.get(m, 0) + 1
             html_pills = ""
             for mat, qtd in contagem.items(): html_pills += f"<span class='threat-pill'>{mat}: {qtd}</span>"
-            st.markdown(f"<div>{html_pills}</div>", unsafe_allow_html=True)
-            st.write("---")
+            st.markdown(f"<div>{html_pills}</div>", unsafe_allow_html=True); st.write("---")
             for i, rev in enumerate(revisoes_pendentes):
                 idx_orig = st.session_state.revisoes.index(rev)
                 col_info, col_btn = st.columns([5, 1])
-                with col_info:
-                    st.markdown(f"""<div class="mission-card"><div><strong style="font-size:1.1rem">{rev['materia']}</strong> <span style="opacity:0.8">({rev['conteudo']})</span></div><div style="background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:4px; font-size:0.8rem">{rev['tipo']}</div></div>""", unsafe_allow_html=True)
+                with col_info: st.markdown(f"""<div class="mission-card"><div><strong style="font-size:1.1rem">{rev['materia']}</strong> <span style="opacity:0.8">({rev['conteudo']})</span></div><div style="background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:4px; font-size:0.8rem">{rev['tipo']}</div></div>""", unsafe_allow_html=True)
                 with col_btn:
                     st.write("")
-                    if st.button("✅ Feito", key=f"rev_ok_{i}"):
-                        st.session_state.revisoes[idx_orig]['status'] = 'concluido'; st.session_state.xp += 50; st.toast("Revisão Concluída! +50 XP", icon="🎖️"); salvar_dados(); st.rerun()
+                    if st.button("✅ Feito", key=f"rev_ok_{i}"): st.session_state.revisoes[idx_orig]['status'] = 'concluido'; st.session_state.xp += 50; st.toast("Revisão Concluída! +50 XP", icon="🎖️"); salvar_dados(); st.rerun()
 
     with tab_hist:
         concluidas = [r for r in st.session_state.revisoes if r['status'] == 'concluido']
@@ -444,7 +437,6 @@ elif menu == "🔄 Revisões Táticas":
 # ==========================================
 elif menu == "⚖️ Lei Seca":
     st.title("⚖️ Lei Seca")
-    st.markdown("Cronômetro dedicado.")
     with st.container(border=True):
         if st.session_state.sessao_estudo is None:
             c1, c2 = st.columns([3, 1])
@@ -452,7 +444,7 @@ elif menu == "⚖️ Lei Seca":
             meta = c2.number_input("Meta", 15, 120, 30)
             if st.button("📖 Ler", type="primary", use_container_width=True):
                 if lei:
-                    st.session_state.sessao_estudo = {"materia": "Lei Seca", "conteudo": lei, "meta": meta, "inicio": datetime.now(), "acumulado": 0, "rodando": True, "index_ciclo": None}
+                    st.session_state.sessao_estudo = {"materia": "Lei Seca", "conteudo": lei, "meta": meta, "inicio": agora_br(), "acumulado": 0, "rodando": True, "index_ciclo": None}
                     st.rerun()
                 else: st.warning("Digite o nome.")
         else:
@@ -460,7 +452,7 @@ elif menu == "⚖️ Lei Seca":
             if st.button("Ir para Home"): st.rerun()
 
 # ==========================================
-# 🧠 FLASHCARDS
+# 🧠 FLASHCARDS RPG (COM PASTAS)
 # ==========================================
 elif menu == "🧠 Flashcards RPG":
     xp = st.session_state.get('xp', 0)
@@ -471,47 +463,100 @@ elif menu == "🧠 Flashcards RPG":
     c_lvl.markdown(f"<h2 style='margin:0'>🛡️ Lvl {nivel}</h2>", unsafe_allow_html=True)
     c_bar.markdown(f"""<div style="margin-top:10px;"><span style="font-weight:bold; color:#666">{xp} / {xp_prox} XP</span><div class="xp-bar-bg"><div class="xp-bar-fill" style="width:{min(prog, 100)}%"></div></div></div>""", unsafe_allow_html=True)
     st.divider()
+    
+    # Abas
     tab_arena, tab_forja, tab_lib = st.tabs(["⚔️ Arena", "⚒️ Forja", "📜 Biblioteca"])
     
+    # --- FORJA (Criar com Concurso) ---
     with tab_forja:
-        c1, c2 = st.columns(2)
-        m_flash = c1.selectbox("Matéria", list(st.session_state.materias.keys()) if st.session_state.materias else ["Geral"])
+        c1, c2, c3 = st.columns([2, 2, 2])
+        concurso_sel = c1.text_input("Pasta/Concurso (Ex: PF 2026)", placeholder="Geral")
+        m_flash = c2.selectbox("Matéria", list(st.session_state.materias.keys()) if st.session_state.materias else ["Geral"])
+        
         perg = st.text_area("Pergunta")
         resp = st.text_area("Resposta")
+        
         if st.button("⚒️ Forjar"):
             if perg and resp:
-                novo_card = {"id": str(datetime.now().timestamp()), "materia": m_flash, "pergunta": perg, "resposta": resp, "proxima_revisao": datetime.now().strftime("%Y-%m-%d"), "intervalo": 1}
-                st.session_state.flashcards.append(novo_card); salvar_dados(); st.success("Criado!")
+                pasta = concurso_sel if concurso_sel.strip() else "Geral"
+                novo_card = {
+                    "id": str(datetime.now().timestamp()),
+                    "concurso": pasta, # NOVO CAMPO
+                    "materia": m_flash,
+                    "pergunta": perg,
+                    "resposta": resp,
+                    "proxima_revisao": agora_br().strftime("%Y-%m-%d"),
+                    "intervalo": 1
+                }
+                st.session_state.flashcards.append(novo_card)
+                salvar_dados()
+                st.success("Criado na pasta: " + pasta)
 
+    # --- ARENA (Estudar com Filtro) ---
     with tab_arena:
-        hoje_str = datetime.now().strftime("%Y-%m-%d")
-        cards_para_hoje = [c for c in st.session_state.flashcards if c.get('proxima_revisao', '2000-01-01') <= hoje_str]
-        if not cards_para_hoje: st.markdown("""<div style="text-align:center; padding: 40px;"><h1>🎉 Vitória!</h1><p>Nenhum inimigo à vista.</p></div>""", unsafe_allow_html=True)
+        hoje_str = agora_br().strftime("%Y-%m-%d")
+        
+        # Filtro de Pastas
+        todas_pastas = list(set([c.get('concurso', 'Geral') for c in st.session_state.flashcards]))
+        filtro_pasta = st.selectbox("📂 Selecionar Pasta de Concurso", ["Todas as Pastas"] + todas_pastas)
+        
+        # Filtra Cards (Data <= Hoje E Pasta == Seleção)
+        cards_pendentes = [c for c in st.session_state.flashcards if c.get('proxima_revisao', '2000-01-01') <= hoje_str]
+        
+        if filtro_pasta != "Todas as Pastas":
+            cards_pendentes = [c for c in cards_pendentes if c.get('concurso', 'Geral') == filtro_pasta]
+        
+        if not cards_pendentes:
+            st.markdown("""<div style="text-align:center; padding: 40px;"><h1>🎉 Pasta Limpa!</h1><p>Nenhum card pendente aqui.</p></div>""", unsafe_allow_html=True)
         else:
-            st.markdown("### 📡 Radar")
+            # Radar
+            st.markdown(f"### 📡 Radar ({len(cards_pendentes)} inimigos)")
             contagem = {}
-            for c in cards_para_hoje: m = c.get('materia', 'Geral'); contagem[m] = contagem.get(m, 0) + 1
+            for c in cards_pendentes: m = c.get('materia', 'Geral'); contagem[m] = contagem.get(m, 0) + 1
             html_pills = ""
             for mat, qtd in contagem.items(): html_pills += f"<span class='threat-pill'>{mat}: {qtd}</span>"
             st.markdown(f"<div>{html_pills}</div>", unsafe_allow_html=True); st.write("") 
             
-            if 'card_batalha' not in st.session_state: st.session_state.card_batalha = random.choice(cards_para_hoje); st.session_state.card_revelado = False
+            # Seleção Card
+            if 'card_batalha' not in st.session_state or st.session_state.card_batalha not in cards_pendentes:
+                st.session_state.card_batalha = random.choice(cards_pendentes)
+                st.session_state.card_revelado = False
+            
             card = st.session_state.card_batalha
-            st.markdown(f"""<div class="rpg-card-container"><div class="rpg-card"><span class="card-category">{card.get('materia', 'Geral')}</span><div class="card-text">{card['pergunta']}</div></div></div>""", unsafe_allow_html=True); st.write("##")
+            
+            # Mostra Pasta e Matéria no Card
+            st.markdown(f"""
+            <div class="rpg-card-container">
+                <div class="rpg-card">
+                    <span class="card-category">{card.get('concurso', 'Geral')} | {card.get('materia', 'Geral')}</span>
+                    <div class="card-text">{card['pergunta']}</div>
+                </div>
+            </div>""", unsafe_allow_html=True); st.write("##")
+            
             if not st.session_state.card_revelado:
                 if st.button("🛡️ Revelar", use_container_width=True): st.session_state.card_revelado = True; st.rerun()
             else:
                 st.info(f"**R:** {card['resposta']}")
                 c1, c2, c3 = st.columns(3)
-                if c1.button("🔴 Errei"): card['proxima_revisao'] = datetime.now().strftime("%Y-%m-%d"); card['intervalo'] = 1; st.session_state.xp += 10; del st.session_state.card_batalha; salvar_dados(); st.rerun()
-                if c2.button("🟡 Bom"): interv = int(card.get('intervalo', 1) * 1.5) + 1; card['proxima_revisao'] = (datetime.now() + timedelta(days=interv)).strftime("%Y-%m-%d"); card['intervalo'] = interv; st.session_state.xp += 20; del st.session_state.card_batalha; salvar_dados(); st.rerun()
-                if c3.button("🟢 Fácil"): interv = int(card.get('intervalo', 1) * 2.5) + 2; card['proxima_revisao'] = (datetime.now() + timedelta(days=interv)).strftime("%Y-%m-%d"); card['intervalo'] = interv; st.session_state.xp += 30; del st.session_state.card_batalha; salvar_dados(); st.rerun()
+                # Lógica SRS
+                if c1.button("🔴 Errei"): 
+                    card['proxima_revisao'] = agora_br().strftime("%Y-%m-%d"); card['intervalo'] = 1; st.session_state.xp += 10
+                    del st.session_state.card_batalha; salvar_dados(); st.rerun()
+                if c2.button("🟡 Bom"): 
+                    interv = int(card.get('intervalo', 1) * 1.5) + 1
+                    card['proxima_revisao'] = (agora_br() + timedelta(days=interv)).strftime("%Y-%m-%d"); card['intervalo'] = interv; st.session_state.xp += 20
+                    del st.session_state.card_batalha; salvar_dados(); st.rerun()
+                if c3.button("🟢 Fácil"): 
+                    interv = int(card.get('intervalo', 1) * 2.5) + 2
+                    card['proxima_revisao'] = (agora_br() + timedelta(days=interv)).strftime("%Y-%m-%d"); card['intervalo'] = interv; st.session_state.xp += 30
+                    del st.session_state.card_batalha; salvar_dados(); st.rerun()
+                
                 if st.session_state.xp >= st.session_state.nivel * 100: st.session_state.nivel += 1; st.session_state.xp = 0; st.toast("LEVEL UP!", icon="🔥")
 
     with tab_lib:
-        st.write(f"Total: {len(st.session_state.flashcards)}")
+        st.write(f"Total de Cards: {len(st.session_state.flashcards)}")
         for i, c in enumerate(st.session_state.flashcards):
-            with st.expander(f"{c.get('materia')} - {c['pergunta'][:30]}..."):
+            with st.expander(f"[{c.get('concurso', 'Geral')}] {c.get('materia')} - {c['pergunta'][:30]}..."):
                 st.write(f"R: {c['resposta']}"); st.caption(f"Rev: {c.get('proxima_revisao')}")
                 if st.button("🗑️", key=f"d_{i}"): st.session_state.flashcards.pop(i); salvar_dados(); st.rerun()
 
