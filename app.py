@@ -6,63 +6,70 @@ from datetime import datetime
 # --- Configuração Inicial ---
 st.set_page_config(page_title="StudyHub Pro", page_icon="🎓", layout="wide")
 
-# --- CSS Personalizado ---
+# --- CSS Personalizado (Estilo da Imagem) ---
 st.markdown("""
 <style>
     .stSelectbox label { display: none; }
     div[data-testid="stExpander"] { border: 1px solid #e2e8f0; border-radius: 8px; }
     
-    /* Card do Ciclo */
-    .cycle-card {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 10px;
-        border-left: 5px solid #cbd5e0;
-    }
-    .cycle-card.active { border-left-color: #4299e1; background-color: #ebf8ff; }
-    .cycle-card.done { border-left-color: #48bb78; background-color: #f0fff4; opacity: 0.7; }
-    
-    /* Estado Vazio */
-    .empty-state {
-        padding: 20px;
-        background-color: #fff5f5;
-        border: 1px dashed #fc8181;
+    /* Barra de Progresso Customizada */
+    .progress-bg {
+        background-color: #f1f3f5;
         border-radius: 10px;
-        text-align: center;
+        height: 10px;
+        width: 100%;
+        margin-top: 5px;
+        margin-bottom: 5px;
+    }
+    .progress-fill {
+        background-color: #ffeb3b; /* Amarelo da imagem (ou verde #48bb78) */
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.5s ease-in-out;
+    }
+    
+    /* Textos */
+    .big-percent { font-size: 3rem; font-weight: bold; color: #333; line-height: 1;}
+    .meta-text { font-size: 0.85rem; color: #888; text-align: right; }
+    .item-title { font-size: 1.1rem; font-weight: 600; color: #444; }
+    
+    /* Container do Item */
+    .etapa-card {
+        background-color: white;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #eee;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Inicialização de Estado ---
-if 'materias' not in st.session_state:
-    st.session_state.materias = {} 
+if 'materias' not in st.session_state: st.session_state.materias = {} 
+if 'sessao_estudo' not in st.session_state: st.session_state.sessao_estudo = None 
+if 'historico_estudos' not in st.session_state: st.session_state.historico_estudos = {} 
 
-if 'ciclo_estudos' not in st.session_state:
-    st.session_state.ciclo_estudos = []
-
-if 'sessao_estudo' not in st.session_state:
-    st.session_state.sessao_estudo = None 
-
-if 'historico_estudos' not in st.session_state:
-    st.session_state.historico_estudos = {} 
+# Estrutura do Ciclo: [{'materia': 'X', 'meta': 60, 'cumprido': 0, 'status': 'pending'}]
+if 'ciclo_estudos' not in st.session_state: st.session_state.ciclo_estudos = []
 
 # --- Funções Auxiliares ---
 def formatar_tempo(segundos):
     segundos = int(segundos)
     h = segundos // 3600
     m = (segundos % 3600) // 60
-    s = segundos % 60
-    return f"{h:02d}:{m:02d}:{s:02d}"
+    return f"{h}h {m}m" if h > 0 else f"{m}m"
+
+def formatar_relogio(segundos):
+    s = int(segundos)
+    return f"{s//3600:02d}:{(s%3600)//60:02d}:{s%60:02d}"
 
 def desenhar_calendario(ano, mes):
     cal = calendar.Calendar(firstweekday=6)
     mes_days = cal.monthdayscalendar(ano, mes)
     dias_semana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
-    
     cols = st.columns(7)
     for i, d in enumerate(dias_semana): cols[i].markdown(f"**{d}**", unsafe_allow_html=True)
-    
     for semana in mes_days:
         cols = st.columns(7)
         for i, dia in enumerate(semana):
@@ -80,223 +87,226 @@ def desenhar_calendario(ano, mes):
                             <div style="color:#ccc;">{dia}</div></div>""", unsafe_allow_html=True)
 
 # --- Barra Lateral ---
-st.sidebar.title("StudyHub v6")
+st.sidebar.title("StudyHub v7")
 menu = st.sidebar.radio("Menu", ["🏠 Home", "⏳ Pomodoro", "✅ Tarefas"])
-
 if st.session_state.sessao_estudo:
     status = "🟢 Estudando" if st.session_state.sessao_estudo['rodando'] else "🟡 Pausado"
     st.sidebar.info(f"{status}: {st.session_state.sessao_estudo['materia']}")
+
+# --- Lógica de Atualização do Tempo no Ciclo ---
+# Se estiver rodando um item do ciclo, atualiza o 'cumprido' dele em tempo real para a barra mexer
+if st.session_state.sessao_estudo and st.session_state.sessao_estudo['rodando']:
+    idx = st.session_state.sessao_estudo.get('index_ciclo')
+    if idx is not None and 0 <= idx < len(st.session_state.ciclo_estudos):
+        # Calcula quanto tempo passou nesta sessão atual
+        delta = (datetime.now() - st.session_state.sessao_estudo['inicio']).total_seconds()
+        # O total cumprido é o que já tinha antes + o delta atual
+        # Nota: Só atualizamos visualmente aqui, o salvamento real acontece no 'Finalizar'
+        tempo_real_atual = st.session_state.sessao_estudo['acumulado'] + delta
+        # Atualizamos o estado do ciclo TEMPORARIAMENTE para refletir no visual
+        st.session_state.ciclo_estudos[idx]['cumprido'] = tempo_real_atual / 60 # Convertendo para minutos
 
 # --- Conteúdo Principal ---
 if menu == "🏠 Home":
     st.title("🎓 Dashboard")
     
-    # Calendário
+    # --- Calendário (Expansível) ---
     if 'ano_cal' not in st.session_state:
-        st.session_state.ano_cal = datetime.now().year
-        st.session_state.mes_cal = datetime.now().month
-
+        st.session_state.ano_cal = datetime.now().year; st.session_state.mes_cal = datetime.now().month
     with st.expander("📅 Ver Calendário", expanded=False):
         c_prev, c_mes, c_next = st.columns([1, 6, 1])
         if c_prev.button("⬅️"): st.session_state.mes_cal -= 1
         c_mes.markdown(f"<h4 style='text-align:center'>{calendar.month_name[st.session_state.mes_cal]}</h4>", unsafe_allow_html=True)
         if c_next.button("➡️"): st.session_state.mes_cal += 1
         desenhar_calendario(st.session_state.ano_cal, st.session_state.mes_cal)
-    
     st.divider()
 
-    # ==========================================
-    # 0. VERIFICAÇÃO INICIAL
-    # ==========================================
+    # =======================================================
+    # 0. VERIFICAÇÃO INICIAL (Se não tem matérias)
+    # =======================================================
     lista_materias = list(st.session_state.materias.keys())
-    
     if not lista_materias:
-        st.markdown("""
-        <div class="empty-state">
-            <h3>👋 Olá! Vamos começar?</h3>
-            <p>Cadastre sua primeira matéria para liberar o painel.</p>
-        </div>""", unsafe_allow_html=True)
-        
-        c_new_mat, c_new_cont, c_new_btn = st.columns([3, 3, 2])
-        new_mat = c_new_mat.text_input("Matéria (ex: Matemática)")
-        new_cont = c_new_cont.text_input("Conteúdo (ex: Álgebra)")
-        
-        if c_new_btn.button("💾 Salvar Inicial", type="primary"):
-            if new_mat and new_cont:
-                st.session_state.materias[new_mat] = [new_cont]
-                st.rerun()
-                
+        st.markdown("""<div style="text-align:center; padding:20px; border:1px dashed #ccc; border-radius:10px;">
+            <h3>👋 Comece por aqui!</h3><p>Cadastre sua primeira matéria para desbloquear o sistema.</p></div>""", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([3,3,2])
+        nm, nc = c1.text_input("Matéria"), c2.text_input("Conteúdo")
+        if c3.button("Salvar", type="primary"):
+            if nm and nc: st.session_state.materias[nm] = [nc]; st.rerun()
     else:
-        # ==========================================
-        # 1. ÁREA DE ESTUDO ATIVO
-        # ==========================================
+        # =======================================================
+        # 1. SESSÃO ATIVA (Player Principal)
+        # =======================================================
         st.subheader("🚀 Sessão Ativa")
-        
         with st.container(border=True):
-            # --- MODO DE SELEÇÃO ---
+            # MODO SELEÇÃO
             if st.session_state.sessao_estudo is None:
                 c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
-                with c1: 
-                    st.caption("Matéria")
-                    mat_rapida = st.selectbox("Sel.", lista_materias, key="m_r")
-                with c2:
-                    st.caption("Conteúdo")
-                    conts = st.session_state.materias.get(mat_rapida, ["Geral"])
-                    cont_rapida = st.selectbox("Sel.", conts, key="c_r")
-                with c3:
-                    st.caption("Meta")
-                    meta_rapida = st.number_input("Min", 5, 120, 45, label_visibility="collapsed")
-                with c4:
-                    st.caption("Ação")
-                    if st.button("▶ Iniciar", type="primary", use_container_width=True):
-                        st.session_state.sessao_estudo = {
-                            "materia": mat_rapida, "conteudo": cont_rapida, "meta": meta_rapida, 
-                            "inicio": datetime.now(), "acumulado": 0, "rodando": True, "index_ciclo": None
-                        }
-                        st.rerun()
+                m_rap = c1.selectbox("Matéria", lista_materias, key="m_quick")
+                c_rap = c2.selectbox("Conteúdo", st.session_state.materias.get(m_rap, ["Geral"]), key="c_quick")
+                meta_rap = c3.number_input("Meta", 5, 120, 45, label_visibility="collapsed")
+                if c4.button("▶ Iniciar", type="primary", use_container_width=True):
+                    st.session_state.sessao_estudo = {
+                        "materia": m_rap, "conteudo": c_rap, "meta": meta_rap, 
+                        "inicio": datetime.now(), "acumulado": 0, "rodando": True, "index_ciclo": None
+                    }
+                    st.rerun()
+                
+                # Gerenciador (Expander)
+                with st.expander("⚙️ Gerenciar Matérias"):
+                    tab1, tab2, tab3 = st.tabs(["➕ Add", "✏️ Edit", "🗑️ Del"])
+                    with tab1:
+                        c_a1, c_a2, c_a3 = st.columns([3,3,2])
+                        nm = c_a1.text_input("Nova Matéria", key="nm_add")
+                        nt = c_a2.text_input("Tópico", key="nt_add")
+                        if c_a3.button("Salvar", key="btn_add"):
+                            if nm and nt: st.session_state.materias[nm] = [nt]; st.success("Ok!"); time.sleep(0.5); st.rerun()
+                    with tab3:
+                         md = st.selectbox("Excluir", lista_materias, key="del_sel")
+                         if st.button("Confirmar Exclusão"): del st.session_state.materias[md]; st.rerun()
 
-                # --- NOVO: GERENCIADOR DE MATÉRIAS ---
-                with st.expander("⚙️ Gerenciar Matérias (Adicionar / Editar / Excluir)"):
-                    tab_add, tab_edit, tab_topics, tab_del = st.tabs(["➕ Adicionar", "✏️ Renomear", "📚 Tópicos", "🗑️ Excluir"])
-                    
-                    # 1. ADICIONAR
-                    with tab_add:
-                        c_a1, c_a2, c_a3 = st.columns([3, 3, 2])
-                        n_m = c_a1.text_input("Nova Matéria", key="add_nm")
-                        n_c = c_a2.text_input("Primeiro Tópico", key="add_nc")
-                        if c_a3.button("Salvar Nova"):
-                            if n_m and n_c:
-                                st.session_state.materias[n_m] = [n_c]
-                                st.success("Adicionado!")
-                                time.sleep(0.5)
-                                st.rerun()
-                    
-                    # 2. RENOMEAR MATÉRIA
-                    with tab_edit:
-                        c_e1, c_e2, c_e3 = st.columns([3, 3, 2])
-                        m_old = c_e1.selectbox("Escolha para renomear", lista_materias, key="ren_old")
-                        m_new = c_e2.text_input("Novo nome", key="ren_new")
-                        if c_e3.button("Renomear"):
-                            if m_new and m_old in st.session_state.materias:
-                                st.session_state.materias[m_new] = st.session_state.materias.pop(m_old)
-                                st.success("Renomeado!")
-                                time.sleep(0.5)
-                                st.rerun()
-                    
-                    # 3. GERENCIAR TÓPICOS
-                    with tab_topics:
-                        m_top = st.selectbox("Selecione a matéria:", lista_materias, key="topic_mat")
-                        if m_top:
-                            atuais = st.session_state.materias[m_top]
-                            st.write(f"Tópicos atuais: {', '.join(atuais)}")
-                            
-                            c_t1, c_t2 = st.columns(2)
-                            novo_top = c_t1.text_input("Adicionar novo tópico:", key="new_topic_input")
-                            if c_t1.button("Adicionar Tópico"):
-                                if novo_top:
-                                    st.session_state.materias[m_top].append(novo_top)
-                                    st.rerun()
-                                    
-                            del_top = c_t2.multiselect("Remover tópicos:", atuais, key="del_topic_input")
-                            if c_t2.button("Remover Selecionados"):
-                                for d in del_top:
-                                    if d in st.session_state.materias[m_top]:
-                                        st.session_state.materias[m_top].remove(d)
-                                st.rerun()
-
-                    # 4. EXCLUIR MATÉRIA
-                    with tab_del:
-                        st.warning("Cuidado: Isso apagará a matéria e seus tópicos!")
-                        c_d1, c_d2 = st.columns([4, 2])
-                        del_target = c_d1.selectbox("Selecione para excluir definitivamente", lista_materias, key="del_target")
-                        if c_d2.button("🗑️ Confirmar Exclusão", type="primary"):
-                            if del_target in st.session_state.materias:
-                                del st.session_state.materias[del_target]
-                                st.success("Excluído!")
-                                time.sleep(0.5)
-                                st.rerun()
-
-            # --- MODO CRONÔMETRO ---
+            # MODO RODANDO
             else:
                 dados = st.session_state.sessao_estudo
-                if dados['rodando']:
-                    total = dados['acumulado'] + (datetime.now() - dados['inicio']).total_seconds()
-                else:
-                    total = dados['acumulado']
-                
-                col_txt, col_timer, col_btns = st.columns([3, 4, 3])
-                with col_txt:
-                    st.markdown(f"### 📖 {dados['materia']}")
+                total_seg = dados['acumulado'] + ((datetime.now()-dados['inicio']).total_seconds() if dados['rodando'] else 0)
+                # Atualiza ciclo em tempo real se vinculado
+                if dados.get('index_ciclo') is not None:
+                     st.session_state.ciclo_estudos[dados['index_ciclo']]['cumprido'] = total_seg / 60
+
+                c_txt, c_time, c_act = st.columns([3, 4, 3])
+                with c_txt:
+                    st.markdown(f"### {dados['materia']}")
                     st.caption(f"Conteúdo: {dados.get('conteudo', 'Geral')}")
-                    st.progress(min(total / (dados['meta']*60), 1.0))
-                with col_timer:
+                    st.progress(min(total_seg / (dados['meta']*60), 1.0))
+                with c_time:
                     cor = "#48bb78" if dados['rodando'] else "#ecc94b"
-                    st.markdown(f"<h1 style='color:{cor};text-align:center;font-size:3rem;margin:0'>{formatar_tempo(total)}</h1>", unsafe_allow_html=True)
-                with col_btns:
+                    st.markdown(f"<h1 style='color:{cor};text-align:center;margin:0'>{formatar_relogio(total_seg)}</h1>", unsafe_allow_html=True)
+                with c_act:
                     st.write("")
-                    c_p, c_s = st.columns(2)
+                    kp, ks = st.columns(2)
                     if dados['rodando']:
-                        if c_p.button("⏸ Pausar", use_container_width=True):
-                            st.session_state.sessao_estudo['acumulado'] = total
+                        if kp.button("⏸ Pausar", use_container_width=True):
+                            st.session_state.sessao_estudo['acumulado'] = total_seg
                             st.session_state.sessao_estudo['rodando'] = False
                             st.rerun()
                     else:
-                        if c_p.button("▶ Retomar", use_container_width=True):
+                        if kp.button("▶ Retomar", use_container_width=True):
                             st.session_state.sessao_estudo['inicio'] = datetime.now()
                             st.session_state.sessao_estudo['rodando'] = True
                             st.rerun()
-                    if c_s.button("⏹ Finalizar", type="primary", use_container_width=True):
+                    if ks.button("⏹ Finalizar", type="primary", use_container_width=True):
+                        # Salva histórico
                         hj = datetime.now().strftime("%Y-%m-%d")
                         h, a = st.session_state.historico_estudos.get(hj, (0, 0))
-                        st.session_state.historico_estudos[hj] = (h + (total/3600), a + 1)
-                        if dados.get('index_ciclo') is not None:
-                            st.session_state.ciclo_estudos[dados['index_ciclo']]['status'] = 'done'
+                        st.session_state.historico_estudos[hj] = (h + (total_seg/3600), a + 1)
+                        # Salva progresso final no ciclo e marca done
+                        idx = dados.get('index_ciclo')
+                        if idx is not None:
+                            st.session_state.ciclo_estudos[idx]['cumprido'] = total_seg / 60
+                            st.session_state.ciclo_estudos[idx]['status'] = 'done'
+                        
                         st.session_state.sessao_estudo = None
                         st.rerun()
-                
                 if dados['rodando']: time.sleep(1); st.rerun()
 
         st.write("##")
 
-        # ==========================================
-        # 2. CICLO DE ESTUDOS
-        # ==========================================
-        st.subheader("🔁 Ciclo de Estudos")
-        with st.container():
-            c1, c2, c3 = st.columns([4, 2, 2])
-            n_m = c1.selectbox("Matéria", lista_materias, key="ciclo_m")
-            n_meta = c2.number_input("Meta", 15, 120, 45, step=5, label_visibility="collapsed")
-            if c3.button("➕ Fila", use_container_width=True):
-                st.session_state.ciclo_estudos.append({"materia": n_m, "meta": n_meta, "status": "pending"})
-                st.rerun()
+        # =======================================================
+        # 2. MEU CICLO DE ESTUDOS (Visual Novo!)
+        # =======================================================
+        
+        # --- Lógica dos Cálculos Globais ---
+        total_meta_global = sum([item['meta'] for item in st.session_state.ciclo_estudos])
+        total_cumprido_global = sum([item.get('cumprido', 0) for item in st.session_state.ciclo_estudos])
+        
+        percent_global = (total_cumprido_global / total_meta_global * 100) if total_meta_global > 0 else 0
+        restante_global = max(0, total_meta_global - total_cumprido_global)
+        
+        # Layout Header do Ciclo
+        col_header_L, col_header_R = st.columns([2, 1])
+        with col_header_L:
+            st.subheader("🔁 Meu Ciclo de Estudos")
+        with col_header_R:
+             with st.popover("➕ Adicionar ao Ciclo"):
+                m_c = st.selectbox("Matéria", lista_materias, key="ciclo_add_m")
+                meta_c = st.number_input("Meta (min)", 15, 120, 45, step=5)
+                if st.button("Adicionar"):
+                    # Agora inicializamos com 'cumprido': 0
+                    st.session_state.ciclo_estudos.append({"materia": m_c, "meta": meta_c, "cumprido": 0, "status": "pending"})
+                    st.rerun()
 
-        st.write("---")
         if not st.session_state.ciclo_estudos:
-            st.caption("Fila vazia.")
+            st.info("Seu ciclo está vazio. Adicione matérias no botão acima ➕")
         else:
+            # --- DISPLAY GLOBAL (Igual à imagem - Parte de Cima) ---
+            st.markdown(f"""
+            <div style="margin-bottom: 30px;">
+                <div style="display:flex; align-items:baseline; justify-content:space-between;">
+                    <span class="big-percent">{percent_global:.1f}%</span>
+                    <span class="meta-text">Falta: {formatar_tempo(restante_global*60)} <br> Meta Total: {formatar_tempo(total_meta_global*60)}</span>
+                </div>
+                <div class="progress-bg"><div class="progress-fill" style="width: {min(percent_global, 100)}%; background-color: #ffeb3b;"></div></div>
+            </div>
+            <h4 style="color:#666; margin-bottom:15px;">Etapas</h4>
+            """, unsafe_allow_html=True)
+
+            # --- LISTA DE ETAPAS (Igual à imagem - Parte de Baixo) ---
             for i, item in enumerate(st.session_state.ciclo_estudos):
-                css = "done" if item['status'] == 'done' else "active" if item['status'] == 'active' else ""
-                icon = "✅" if item['status'] == 'done' else "🔵" if item['status'] == 'active' else "⚪"
+                # Cálculos Individuais
+                meta_min = item['meta']
+                cump_min = item.get('cumprido', 0)
+                percent_item = (cump_min / meta_min * 100) if meta_min > 0 else 0
+                falta_min = max(0, meta_min - cump_min)
                 
-                st.markdown(f"""
-                <div class="cycle-card {css}">
-                    <strong>{icon} {item['materia']}</strong> <span style="color:#666">({item['meta']} min)</span>
-                </div>""", unsafe_allow_html=True)
+                # Definição de Cores/Status
+                cor_barra = "#48bb78" if item['status'] == 'done' else "#4299e1" if item['status'] == 'active' else "#cbd5e0"
+                if percent_item >= 100: cor_barra = "#48bb78" # Verde se completou
+
+                # Colunas para alinhar Botão Play à direita
+                col_card, col_btn = st.columns([5, 1])
                 
-                if item['status'] == 'pending':
-                    if st.button("▶ Iniciar", key=f"btn_{i}"):
-                        st.session_state.sessao_estudo = {
-                            "materia": item['materia'], "meta": item['meta'],
-                            "inicio": datetime.now(), "acumulado": 0, "rodando": True, "index_ciclo": i
-                        }
-                        item['status'] = 'active'
-                        st.rerun()
-            
-            if st.button("Limpar Ciclo"):
+                with col_card:
+                    st.markdown(f"""
+                    <div class="etapa-card">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span class="item-title">{item['materia']}</span>
+                            <span class="meta-text" style="color:#ff6b6b;">Falta: {formatar_tempo(falta_min*60)} <span style="color:#ccc">/ Meta: {formatar_tempo(meta_min*60)}</span></span>
+                        </div>
+                        <div class="progress-bg" style="height:6px;">
+                            <div class="progress-fill" style="width: {min(percent_item, 100)}%; background-color: {cor_barra};"></div>
+                        </div>
+                        <div style="text-align:right; font-size:0.8rem; color:#888; margin-top:3px;">{percent_item:.1f}%</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_btn:
+                    # Lógica do Botão Play
+                    st.write("") # Espaçamento para alinhar verticalmente
+                    st.write("") 
+                    
+                    disabled = False
+                    if st.session_state.sessao_estudo is not None: disabled = True # Bloqueia se já tem um rodando
+                    if item['status'] == 'done' and percent_item >= 100: disabled = True # Bloqueia se já acabou
+                    
+                    label_btn = "▶"
+                    if item['status'] == 'active': label_btn = "Em Andamento"
+                    
+                    if not disabled:
+                        if st.button(label_btn, key=f"play_stage_{i}"):
+                            st.session_state.sessao_estudo = {
+                                "materia": item['materia'], "meta": meta_min,
+                                "inicio": datetime.now(), 
+                                "acumulado": cump_min * 60, # Converte min de volta pra segundos pro timer
+                                "rodando": True, "index_ciclo": i, "conteudo": "Ciclo"
+                            }
+                            item['status'] = 'active'
+                            st.rerun()
+
+            # Botão Limpar (Discreto)
+            if st.button("🗑️ Reiniciar Ciclo", help="Apaga todas as etapas acima"):
                 st.session_state.ciclo_estudos = []
                 st.rerun()
 
 elif menu == "⏳ Pomodoro":
-    st.header("Pomodoro (Em breve)")
+    st.header("Pomodoro")
 elif menu == "✅ Tarefas":
-    st.header("Tarefas (Em breve)")
+    st.header("Tarefas")
