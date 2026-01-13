@@ -8,7 +8,66 @@ from datetime import datetime
 # --- Configuração Inicial ---
 st.set_page_config(page_title="StudyHub Pro", page_icon="🎓", layout="wide")
 
+# ==========================================
+# 🔐 SISTEMA DE LOGIN (NOVO)
+# ==========================================
+
+# Credenciais Definidas
+CREDENCIAIS = {
+    "Odecielisom": "Fernanda",
+    "Fernanda": "Odecielisom"
+}
+
+# Inicializa estado de login
+if 'logado' not in st.session_state:
+    st.session_state.logado = False
+if 'usuario_atual' not in st.session_state:
+    st.session_state.usuario_atual = ""
+
+def verificar_login():
+    """Verifica usuário e senha"""
+    user = st.session_state.input_usuario
+    pwd = st.session_state.input_senha
+    
+    if user in CREDENCIAIS and CREDENCIAIS[user] == pwd:
+        st.session_state.logado = True
+        st.session_state.usuario_atual = user
+    else:
+        st.session_state.logado = False
+        st.error("Usuário ou Senha incorretos")
+
+# SE NÃO ESTIVER LOGADO, MOSTRA TELA DE LOGIN E PARA TUDO
+if not st.session_state.logado:
+    st.markdown("""
+    <style>
+        .login-box {
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background-color: white;
+            text-align: center;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<div style='text-align: center;'><h1>🔐 Acesso Restrito</h1><p>StudyHub Pro</p></div>", unsafe_allow_html=True)
+        st.text_input("Usuário", key="input_usuario")
+        st.text_input("Senha", type="password", key="input_senha")
+        st.button("Entrar", on_click=verificar_login, type="primary", use_container_width=True)
+    
+    # O COMANDO MÁGICO: Para a execução aqui se não estiver logado
+    st.stop()
+
+# ==========================================
+# 🚀 APLICAÇÃO PRINCIPAL (SÓ CARREGA SE LOGADO)
+# ==========================================
+
 # --- ARQUIVO DE BANCO DE DADOS ---
+# Dica: No futuro podemos criar um arquivo diferente para cada usuário
 ARQUIVO_DB = "dados_estudos.json"
 
 # --- Funções de Persistência ---
@@ -86,7 +145,7 @@ def desenhar_calendario(ano, mes):
                     val = st.session_state.historico_estudos.get(chave, [0, 0])
                     h_val, a_val = (val[0], val[1]) if isinstance(val, list) else (0,0)
                     if h_val > 0:
-                        h, m = seconds_to_hm(h_val * 3600) # h_val está em horas float
+                        h, m = seconds_to_hm(h_val * 3600)
                         st.markdown(f"""<div style="background-color:#eafce0;border-radius:6px;padding:8px;height:90px;">
                             <div style="font-weight:bold;color:#666;">{dia}</div>
                             <div style="font-size:12px;">📖 {a_val}<br>⏱️ {h}h{m:02d}m</div></div>""", unsafe_allow_html=True)
@@ -95,9 +154,21 @@ def desenhar_calendario(ano, mes):
 
 # --- Sidebar ---
 st.sidebar.title("StudyHub Pro")
+
+# Mostra quem está logado
+st.sidebar.caption(f"👤 Olá, **{st.session_state.usuario_atual}**")
+
+# Botão de Sair (Logout)
+if st.sidebar.button("🚪 Sair"):
+    st.session_state.logado = False
+    st.session_state.usuario_atual = ""
+    st.rerun()
+
+st.sidebar.divider()
+
 menu = st.sidebar.radio("Menu", ["🏠 Home", "⏳ Pomodoro", "✅ Tarefas"])
 st.sidebar.divider()
-if st.sidebar.button("🗑️ Resetar Tudo (Correção)"):
+if st.sidebar.button("🗑️ Resetar Tudo"):
     if os.path.exists(ARQUIVO_DB): os.remove(ARQUIVO_DB)
     st.session_state.clear()
     st.rerun()
@@ -138,7 +209,6 @@ if menu == "🏠 Home":
         with st.container(border=True):
             if st.session_state.sessao_estudo is None:
                 c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
-                # ADICIONEI KEYS ÚNICAS AQUI (key="sessao_...")
                 m_rap = c1.selectbox("Matéria", lista_materias, key="sessao_mat")
                 c_rap = c2.selectbox("Conteúdo", st.session_state.materias.get(m_rap, ["Geral"]), key="sessao_cont")
                 meta_rap = c3.number_input("Meta", 5, 120, 45, key="sessao_meta", label_visibility="collapsed")
@@ -201,7 +271,6 @@ if menu == "🏠 Home":
         with cL: st.subheader("🔁 Ciclo de Estudos")
         with cR:
              with st.popover("➕ Adicionar ao Ciclo"):
-                # ADICIONEI KEYS ÚNICAS AQUI TAMBÉM (key="ciclo_...")
                 m_c = st.selectbox("Matéria", lista_materias, key="ciclo_add_mat")
                 meta_c = st.number_input("Meta (min)", 15, 120, 45, step=5, key="ciclo_add_meta")
                 if st.button("Adicionar", key="ciclo_add_btn"):
