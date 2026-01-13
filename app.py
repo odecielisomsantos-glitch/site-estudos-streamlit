@@ -32,7 +32,6 @@ def carregar_dados_usuario():
     st.session_state.historico_estudos = {}
     st.session_state.ciclo_estudos = []
     st.session_state.flashcards = []
-    # Gamificação
     st.session_state.xp = 0
     st.session_state.nivel = 1
 
@@ -94,54 +93,32 @@ if not st.session_state.logado:
 if 'sessao_estudo' not in st.session_state: st.session_state.sessao_estudo = None 
 if 'flashcards' not in st.session_state: st.session_state.flashcards = []
 
-# --- CSS REVOLUCIONÁRIO ---
+# --- CSS ---
 st.markdown("""
 <style>
     .stSelectbox label { display: none; }
     div[data-testid="stExpander"] { border: 1px solid #e2e8f0; border-radius: 8px; }
-    
-    /* Design do Flashcard RPG */
-    .rpg-card-container {
-        perspective: 1000px;
-        margin-top: 20px;
-    }
-    .rpg-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
-        border-radius: 20px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        padding: 40px;
-        text-align: center;
-        min-height: 300px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        border: 1px solid #e5e7eb;
-        transition: transform 0.3s;
-    }
+    .rpg-card-container { perspective: 1000px; margin-top: 20px; }
+    .rpg-card { background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%); border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); padding: 40px; text-align: center; min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid #e5e7eb; transition: transform 0.3s; }
     .rpg-card:hover { transform: translateY(-5px); }
-    .card-category {
-        background-color: #e0f2fe; color: #0369a1; 
-        padding: 5px 15px; border-radius: 20px; 
-        font-size: 0.8rem; font-weight: bold; margin-bottom: 20px;
-        text-transform: uppercase; letter-spacing: 1px;
-    }
+    .card-category { background-color: #e0f2fe; color: #0369a1; padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
     .card-text { font-size: 1.6rem; font-weight: 600; color: #1f2937; line-height: 1.4; }
-    
-    /* Gamification Header */
     .xp-bar-bg { background: #e5e7eb; height: 10px; border-radius: 5px; width: 100%; margin-top: 5px; }
     .xp-bar-fill { background: linear-gradient(90deg, #8b5cf6, #ec4899); height: 100%; border-radius: 5px; }
     
-    /* Botões de Decisão */
-    .btn-hard { border: 2px solid #ef4444; color: #ef4444; background: white; padding: 10px; border-radius: 10px; text-align: center; cursor: pointer; font-weight: bold;}
-    .btn-hard:hover { background: #ef4444; color: white; }
-    
-    .btn-good { border: 2px solid #f59e0b; color: #f59e0b; background: white; padding: 10px; border-radius: 10px; text-align: center; cursor: pointer; font-weight: bold;}
-    .btn-good:hover { background: #f59e0b; color: white; }
-    
-    .btn-easy { border: 2px solid #10b981; color: #10b981; background: white; padding: 10px; border-radius: 10px; text-align: center; cursor: pointer; font-weight: bold;}
-    .btn-easy:hover { background: #10b981; color: white; }
-
+    /* Radar de Ameaças */
+    .threat-pill {
+        display: inline-block;
+        background-color: #fee2e2;
+        color: #991b1b;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.85rem;
+        margin-right: 8px;
+        margin-bottom: 8px;
+        border: 1px solid #fecaca;
+        font-weight: 600;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -191,7 +168,6 @@ if st.sidebar.button("🗑️ Resetar Meus Dados"):
     st.session_state.clear()
     st.rerun()
 
-# Atualização do Ciclo
 if st.session_state.sessao_estudo and st.session_state.sessao_estudo['rodando']:
     st.sidebar.info(f"🟢 {st.session_state.sessao_estudo['materia']}")
     idx = st.session_state.sessao_estudo.get('index_ciclo')
@@ -205,7 +181,6 @@ if st.session_state.sessao_estudo and st.session_state.sessao_estudo['rodando']:
 if menu == "🏠 Home":
     st.title(f"Painel de {st.session_state.usuario_atual}")
     
-    # --- CALENDÁRIO ---
     if 'ano_cal' not in st.session_state: st.session_state.ano_cal = datetime.now().year; st.session_state.mes_cal = datetime.now().month
     with st.expander("📅 Calendário de Estudos", expanded=True):
         c_prev, c_mes, c_next = st.columns([1, 6, 1])
@@ -317,30 +292,21 @@ elif menu == "⚖️ Lei Seca":
             if st.button("Ir para Home"): st.rerun()
 
 # ==========================================
-# 🧠 FLASHCARDS RPG (REVOLUCIONÁRIO)
+# 🧠 FLASHCARDS RPG
 # ==========================================
 elif menu == "🧠 Flashcards RPG":
-    
-    # 1. CABEÇALHO GAMIFICADO
     xp = st.session_state.get('xp', 0)
     nivel = st.session_state.get('nivel', 1)
     xp_prox = nivel * 100
-    progresso_xp = (xp / xp_prox) * 100
+    prog = (xp / xp_prox) * 100
     
     c_lvl, c_bar = st.columns([1, 4])
     c_lvl.markdown(f"<h2 style='margin:0'>🛡️ Lvl {nivel}</h2>", unsafe_allow_html=True)
-    c_bar.markdown(f"""
-    <div style="margin-top:10px;">
-        <span style="font-weight:bold; color:#666">{xp} / {xp_prox} XP</span>
-        <div class="xp-bar-bg"><div class="xp-bar-fill" style="width:{min(progresso_xp, 100)}%"></div></div>
-    </div>""", unsafe_allow_html=True)
-    
+    c_bar.markdown(f"""<div style="margin-top:10px;"><span style="font-weight:bold; color:#666">{xp} / {xp_prox} XP</span><div class="xp-bar-bg"><div class="xp-bar-fill" style="width:{min(prog, 100)}%"></div></div></div>""", unsafe_allow_html=True)
     st.divider()
 
-    # 2. ABAS (ARENA vs FORJA)
     tab_arena, tab_forja, tab_lib = st.tabs(["⚔️ A Arena (Estudar)", "⚒️ A Forja (Criar)", "📜 Biblioteca"])
     
-    # --- A FORJA (CRIAR) ---
     with tab_forja:
         c1, c2 = st.columns(2)
         m_flash = c1.selectbox("Matéria", list(st.session_state.materias.keys()) if st.session_state.materias else ["Geral"])
@@ -348,125 +314,63 @@ elif menu == "🧠 Flashcards RPG":
         resp = st.text_area("Resposta / Solução")
         if st.button("⚒️ Forjar Carta"):
             if perg and resp:
-                novo_card = {
-                    "id": str(datetime.now().timestamp()),
-                    "materia": m_flash,
-                    "pergunta": perg,
-                    "resposta": resp,
-                    "proxima_revisao": datetime.now().strftime("%Y-%m-%d"), # Disponível hoje
-                    "intervalo": 1
-                }
-                st.session_state.flashcards.append(novo_card)
-                salvar_dados()
-                st.success("Carta adicionada ao seu deck!")
+                novo_card = {"id": str(datetime.now().timestamp()), "materia": m_flash, "pergunta": perg, "resposta": resp, "proxima_revisao": datetime.now().strftime("%Y-%m-%d"), "intervalo": 1}
+                st.session_state.flashcards.append(novo_card); salvar_dados(); st.success("Adicionado!")
 
-    # --- A ARENA (ESTUDAR SRS) ---
     with tab_arena:
-        # Filtra cartas disponíveis para hoje
         hoje_str = datetime.now().strftime("%Y-%m-%d")
         cards_para_hoje = [c for c in st.session_state.flashcards if c.get('proxima_revisao', '2000-01-01') <= hoje_str]
         
         if not cards_para_hoje:
-            st.markdown("""
-            <div style="text-align:center; padding: 40px;">
-                <h1>🎉 Vitória!</h1>
-                <p>Você zerou todos os inimigos (cards) por hoje!</p>
-                <p>Descanse, guerreiro, ou crie mais cartas na Forja.</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown("""<div style="text-align:center; padding: 40px;"><h1>🎉 Vitória!</h1><p>Nenhum inimigo à vista por hoje.</p></div>""", unsafe_allow_html=True)
         else:
-            # Seleciona um card aleatório dos pendentes
+            # --- RADAR DE AMEAÇAS (NOVO) ---
+            st.markdown("### 📡 Radar de Ameaças")
+            contagem = {}
+            for c in cards_para_hoje:
+                m = c.get('materia', 'Geral')
+                contagem[m] = contagem.get(m, 0) + 1
+            
+            # Mostra as "Pílulas" de contagem
+            html_pills = ""
+            for mat, qtd in contagem.items():
+                html_pills += f"<span class='threat-pill'>{mat}: {qtd}</span>"
+            st.markdown(f"<div>{html_pills}</div>", unsafe_allow_html=True)
+            st.write("") # Espaço
+            
+            # BATTLE
             if 'card_batalha' not in st.session_state:
                 st.session_state.card_batalha = random.choice(cards_para_hoje)
                 st.session_state.card_revelado = False
             
             card = st.session_state.card_batalha
-            total_pendente = len(cards_para_hoje)
-            
-            st.caption(f"🔥 Inimigos restantes hoje: {total_pendente}")
-            
-            # MOSTRA A CARTA (FRONT)
-            st.markdown(f"""
-            <div class="rpg-card-container">
-                <div class="rpg-card">
-                    <span class="card-category">{card.get('materia', 'Geral')}</span>
-                    <div class="card-text">{card['pergunta']}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.write("##") # Espaço
+            st.markdown(f"""<div class="rpg-card-container"><div class="rpg-card"><span class="card-category">{card.get('materia', 'Geral')}</span><div class="card-text">{card['pergunta']}</div></div></div>""", unsafe_allow_html=True)
+            st.write("##")
             
             if not st.session_state.card_revelado:
-                if st.button("🛡️ Revelar Resposta", use_container_width=True):
-                    st.session_state.card_revelado = True
-                    st.rerun()
+                if st.button("🛡️ Revelar Resposta", use_container_width=True): st.session_state.card_revelado = True; st.rerun()
             else:
-                # MOSTRA A RESPOSTA (BACK) E BOTÕES DE DECISÃO
                 st.info(f"**Resposta:** {card['resposta']}")
+                c1, c2, c3 = st.columns(3)
+                if c1.button("🔴 Errei (+10 XP)"):
+                    card['proxima_revisao'] = datetime.now().strftime("%Y-%m-%d"); card['intervalo'] = 1; st.session_state.xp += 10
+                    del st.session_state.card_batalha; salvar_dados(); st.rerun()
+                if c2.button("🟡 Bom (+20 XP)"):
+                    interv = int(card.get('intervalo', 1) * 1.5) + 1; card['proxima_revisao'] = (datetime.now() + timedelta(days=interv)).strftime("%Y-%m-%d"); card['intervalo'] = interv; st.session_state.xp += 20
+                    del st.session_state.card_batalha; salvar_dados(); st.rerun()
+                if c3.button("🟢 Fácil (+30 XP)"):
+                    interv = int(card.get('intervalo', 1) * 2.5) + 2; card['proxima_revisao'] = (datetime.now() + timedelta(days=interv)).strftime("%Y-%m-%d"); card['intervalo'] = interv; st.session_state.xp += 30
+                    del st.session_state.card_batalha; salvar_dados(); st.rerun()
                 
-                st.write("### Como foi a batalha?")
-                col_h, col_m, col_e = st.columns(3)
-                
-                # LÓGICA DO SRS (SIMPLIFICADA)
-                # Hard: Repete amanhã (XP +10)
-                # Good: Intervalo * 1.5 (XP +20)
-                # Easy: Intervalo * 2.5 (XP +30)
-                
-                if col_h.button("🔴 Errei / Difícil (+10 XP)"):
-                    card['proxima_revisao'] = datetime.now().strftime("%Y-%m-%d") # Mantém hoje/amanhã
-                    card['intervalo'] = 1
-                    st.session_state.xp += 10
-                    # Checa Level Up
-                    if st.session_state.xp >= st.session_state.nivel * 100:
-                        st.session_state.nivel += 1
-                        st.session_state.xp = 0
-                        st.toast("LEVEL UP! 🆙", icon="🔥")
-                    
-                    del st.session_state.card_batalha
-                    salvar_dados()
-                    st.rerun()
+                # Check Level Up
+                if st.session_state.xp >= st.session_state.nivel * 100: st.session_state.nivel += 1; st.session_state.xp = 0; st.toast("LEVEL UP! 🆙", icon="🔥")
 
-                if col_m.button("🟡 Bom (+20 XP)"):
-                    interv = int(card.get('intervalo', 1) * 1.5) + 1
-                    prox = datetime.now() + timedelta(days=interv)
-                    card['proxima_revisao'] = prox.strftime("%Y-%m-%d")
-                    card['intervalo'] = interv
-                    st.session_state.xp += 20
-                    
-                    if st.session_state.xp >= st.session_state.nivel * 100:
-                        st.session_state.nivel += 1; st.session_state.xp = 0; st.toast("LEVEL UP! 🆙", icon="🔥")
-                        
-                    del st.session_state.card_batalha
-                    salvar_dados()
-                    st.rerun()
-
-                if col_e.button("🟢 Fácil (+30 XP)"):
-                    interv = int(card.get('intervalo', 1) * 2.5) + 2
-                    prox = datetime.now() + timedelta(days=interv)
-                    card['proxima_revisao'] = prox.strftime("%Y-%m-%d")
-                    card['intervalo'] = interv
-                    st.session_state.xp += 30
-                    
-                    if st.session_state.xp >= st.session_state.nivel * 100:
-                        st.session_state.nivel += 1; st.session_state.xp = 0; st.toast("LEVEL UP! 🆙", icon="🔥")
-                        
-                    del st.session_state.card_batalha
-                    salvar_dados()
-                    st.rerun()
-
-    # --- BIBLIOTECA (GERENCIAR) ---
     with tab_lib:
-        st.write(f"Total de cartas no deck: {len(st.session_state.flashcards)}")
+        st.write(f"Total: {len(st.session_state.flashcards)}")
         for i, c in enumerate(st.session_state.flashcards):
             with st.expander(f"{c.get('materia')} - {c['pergunta'][:30]}..."):
-                st.write(f"**P:** {c['pergunta']}")
-                st.write(f"**R:** {c['resposta']}")
-                st.caption(f"Próxima revisão: {c.get('proxima_revisao')}")
-                if st.button("🗑️ Excluir Card", key=f"del_card_{i}"):
-                    st.session_state.flashcards.pop(i)
-                    salvar_dados()
-                    st.rerun()
+                st.write(f"R: {c['resposta']}"); st.caption(f"Revisão: {c.get('proxima_revisao')}")
+                if st.button("🗑️", key=f"d_{i}"): st.session_state.flashcards.pop(i); salvar_dados(); st.rerun()
 
 # ==========================================
 # 📊 ACOMPANHAMENTO
@@ -476,11 +380,8 @@ elif menu == "📊 Acompanhamento":
     total_horas = 0
     total_dias = len(st.session_state.historico_estudos)
     for data, valores in st.session_state.historico_estudos.items(): total_horas += valores[0]
-    
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Estudado", f"{int(total_horas)}h {int((total_horas%1)*60)}m")
-    c2.metric("Dias Ativos", f"{total_dias} dias")
-    if total_dias > 0:
-        media = total_horas / total_dias
-        c3.metric("Média Diária", f"{int(media)}h {int((media%1)*60)}m")
-    else: c3.metric("Média Diária", "0h")
+    c1.metric("Total", f"{int(total_horas)}h {int((total_horas%1)*60)}m")
+    c2.metric("Dias", f"{total_dias}")
+    media = total_horas / total_dias if total_dias > 0 else 0
+    c3.metric("Média", f"{int(media)}h {int((media%1)*60)}m")
