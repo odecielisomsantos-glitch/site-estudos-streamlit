@@ -11,33 +11,26 @@ st.set_page_config(page_title="StudyHub Pro", page_icon="🎓", layout="wide")
 # --- ARQUIVO DE BANCO DE DADOS ---
 ARQUIVO_DB = "dados_estudos.json"
 
-# --- Funções de Persistência (Salvar e Carregar) ---
+# --- Funções de Persistência ---
 def carregar_dados():
-    """Lê o arquivo JSON e retorna os dados. Se não existir, retorna padrão vazio."""
     if not os.path.exists(ARQUIVO_DB):
-        return {
-            "materias": {},
-            "historico": {},
-            "ciclo": []
-        }
+        return {"materias": {}, "historico": {}, "ciclo": []}
     try:
         with open(ARQUIVO_DB, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+    except:
         return {"materias": {}, "historico": {}, "ciclo": []}
 
 def salvar_dados():
-    """Pega o estado atual e salva no arquivo JSON."""
-    dados_para_salvar = {
+    dados = {
         "materias": st.session_state.materias,
         "historico": st.session_state.historico_estudos,
         "ciclo": st.session_state.ciclo_estudos
     }
     with open(ARQUIVO_DB, "w", encoding="utf-8") as f:
-        json.dump(dados_para_salvar, f, ensure_ascii=False, indent=4)
+        json.dump(dados, f, ensure_ascii=False, indent=4)
 
-# --- Inicialização de Estado (CARREGANDO DO ARQUIVO) ---
+# --- Inicialização ---
 if 'dados_carregados' not in st.session_state:
     db = carregar_dados()
     st.session_state.materias = db.get("materias", {})
@@ -45,10 +38,9 @@ if 'dados_carregados' not in st.session_state:
     st.session_state.ciclo_estudos = db.get("ciclo", [])
     st.session_state.dados_carregados = True
 
-if 'sessao_estudo' not in st.session_state:
-    st.session_state.sessao_estudo = None 
+if 'sessao_estudo' not in st.session_state: st.session_state.sessao_estudo = None 
 
-# --- CSS Personalizado ---
+# --- CSS ---
 st.markdown("""
 <style>
     .stSelectbox label { display: none; }
@@ -62,15 +54,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Constantes ---
 MESES_PT = {1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho", 7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro"}
 
-# --- Funções Auxiliares de Visualização ---
+# --- Funções Visuais ---
 def formatar_tempo(segundos):
     segundos = int(segundos)
+    h, m = seconds_to_hm(segundos)
+    return f"{h}h {m}m" if h > 0 else f"{m}m"
+
+def seconds_to_hm(segundos):
     h = segundos // 3600
     m = (segundos % 3600) // 60
-    return f"{h}h {m}m" if h > 0 else f"{m}m"
+    return int(h), int(m)
 
 def formatar_relogio(segundos):
     s = int(segundos)
@@ -79,34 +74,30 @@ def formatar_relogio(segundos):
 def desenhar_calendario(ano, mes):
     cal = calendar.Calendar(firstweekday=6)
     mes_days = cal.monthdayscalendar(ano, mes)
-    dias_semana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
+    dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
     cols = st.columns(7)
-    for i, d in enumerate(dias_semana): cols[i].markdown(f"**{d}**", unsafe_allow_html=True)
+    for i, d in enumerate(dias): cols[i].markdown(f"**{d}**", unsafe_allow_html=True)
     for semana in mes_days:
         cols = st.columns(7)
         for i, dia in enumerate(semana):
             with cols[i]:
                 if dia != 0:
                     chave = f"{ano}-{mes:02d}-{dia:02d}"
-                    horas, ativ = st.session_state.historico_estudos.get(chave, [0, 0]) # [horas, qtd]
-                    # Compatibilidade se salvou como tupla antiga
-                    if isinstance(horas, list) or isinstance(horas, tuple): h_val, a_val = horas[0], horas[1]
-                    else: h_val, a_val = 0, 0
-
+                    val = st.session_state.historico_estudos.get(chave, [0, 0])
+                    h_val, a_val = (val[0], val[1]) if isinstance(val, list) else (0,0)
                     if h_val > 0:
-                        h, m = int(h_val), int((h_val % 1) * 60)
+                        h, m = seconds_to_hm(h_val * 3600) # h_val está em horas float
                         st.markdown(f"""<div style="background-color:#eafce0;border-radius:6px;padding:8px;height:90px;">
                             <div style="font-weight:bold;color:#666;">{dia}</div>
                             <div style="font-size:12px;">📖 {a_val}<br>⏱️ {h}h{m:02d}m</div></div>""", unsafe_allow_html=True)
                     else:
-                        st.markdown(f"""<div style="background-color:#f9f9f9;border-radius:6px;padding:8px;height:90px;">
-                            <div style="color:#ccc;">{dia}</div></div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div style="background-color:#f9f9f9;border-radius:6px;padding:8px;height:90px;"><div style="color:#ccc;">{dia}</div></div>""", unsafe_allow_html=True)
 
-# --- Barra Lateral ---
+# --- Sidebar ---
 st.sidebar.title("StudyHub Pro")
 menu = st.sidebar.radio("Menu", ["🏠 Home", "⏳ Pomodoro", "✅ Tarefas"])
 st.sidebar.divider()
-if st.sidebar.button("🗑️ Resetar Tudo (Apaga DB)"):
+if st.sidebar.button("🗑️ Resetar Tudo (Correção)"):
     if os.path.exists(ARQUIVO_DB): os.remove(ARQUIVO_DB)
     st.session_state.clear()
     st.rerun()
@@ -114,22 +105,18 @@ if st.sidebar.button("🗑️ Resetar Tudo (Apaga DB)"):
 if st.session_state.sessao_estudo:
     status = "🟢 Estudando" if st.session_state.sessao_estudo['rodando'] else "🟡 Pausado"
     st.sidebar.info(f"{status}: {st.session_state.sessao_estudo['materia']}")
-    
-    # Atualiza visual do ciclo em tempo real
     if st.session_state.sessao_estudo['rodando']:
         idx = st.session_state.sessao_estudo.get('index_ciclo')
         if idx is not None and 0 <= idx < len(st.session_state.ciclo_estudos):
             delta = (datetime.now() - st.session_state.sessao_estudo['inicio']).total_seconds()
-            tempo_real = st.session_state.sessao_estudo['acumulado'] + delta
-            st.session_state.ciclo_estudos[idx]['cumprido'] = tempo_real / 60
+            st.session_state.ciclo_estudos[idx]['cumprido'] = (st.session_state.sessao_estudo['acumulado'] + delta) / 60
 
-# --- Conteúdo Principal ---
+# --- Home ---
 if menu == "🏠 Home":
     st.title("🎓 Dashboard")
     
-    # Calendário
     if 'ano_cal' not in st.session_state: st.session_state.ano_cal = datetime.now().year; st.session_state.mes_cal = datetime.now().month
-    with st.expander("📅 Calendário de Estudos", expanded=True):
+    with st.expander("📅 Calendário", expanded=True):
         c_prev, c_mes, c_next = st.columns([1, 6, 1])
         if c_prev.button("⬅️"): st.session_state.mes_cal -= 1
         c_mes.markdown(f"<h4 style='text-align:center'>{MESES_PT.get(st.session_state.mes_cal, 'Mês')} {st.session_state.ano_cal}</h4>", unsafe_allow_html=True)
@@ -139,27 +126,23 @@ if menu == "🏠 Home":
 
     lista_materias = list(st.session_state.materias.keys())
     
-    # Se não tiver matérias, mostra tela de boas-vindas
     if not lista_materias:
-        st.markdown("""<div style="text-align:center; padding:20px; border:1px dashed #ccc; border-radius:10px;">
-            <h3>👋 Bem-vindo!</h3><p>Cadastre sua primeira matéria. (Seus dados serão salvos automaticamente)</p></div>""", unsafe_allow_html=True)
+        st.info("👋 Cadastre sua primeira matéria abaixo para começar!")
         c1, c2, c3 = st.columns([3,3,2])
-        nm, nc = c1.text_input("Matéria"), c2.text_input("Conteúdo")
-        if c3.button("Salvar Inicial", type="primary"):
-            if nm and nc: 
-                st.session_state.materias[nm] = [nc]
-                salvar_dados() # <--- SALVA NO ARQUIVO
-                st.rerun()
+        nm = c1.text_input("Nome da Matéria", key="init_nome")
+        nc = c2.text_input("Primeiro Conteúdo", key="init_cont")
+        if c3.button("Salvar Inicial", key="init_btn", type="primary"):
+            if nm and nc: st.session_state.materias[nm] = [nc]; salvar_dados(); st.rerun()
     else:
-        # Sessão Ativa
         st.subheader("🚀 Sessão Ativa")
         with st.container(border=True):
             if st.session_state.sessao_estudo is None:
                 c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
-                m_rap = c1.selectbox("Matéria", lista_materias)
-                c_rap = c2.selectbox("Conteúdo", st.session_state.materias.get(m_rap, ["Geral"]))
-                meta_rap = c3.number_input("Meta", 5, 120, 45, label_visibility="collapsed")
-                if c4.button("▶ Iniciar", type="primary", use_container_width=True):
+                # ADICIONEI KEYS ÚNICAS AQUI (key="sessao_...")
+                m_rap = c1.selectbox("Matéria", lista_materias, key="sessao_mat")
+                c_rap = c2.selectbox("Conteúdo", st.session_state.materias.get(m_rap, ["Geral"]), key="sessao_cont")
+                meta_rap = c3.number_input("Meta", 5, 120, 45, key="sessao_meta", label_visibility="collapsed")
+                if c4.button("▶ Iniciar", key="sessao_btn", type="primary", use_container_width=True):
                     st.session_state.sessao_estudo = {
                         "materia": m_rap, "conteudo": c_rap, "meta": meta_rap, 
                         "inicio": datetime.now(), "acumulado": 0, "rodando": True, "index_ciclo": None
@@ -167,80 +150,63 @@ if menu == "🏠 Home":
                     st.rerun()
                 
                 with st.expander("⚙️ Gerenciar Matérias"):
-                    tab1, tab2, tab3 = st.tabs(["➕ Add", "✏️ Edit", "🗑️ Del"])
-                    with tab1:
-                        c_a1, c_a2, c_a3 = st.columns([3,3,2])
-                        nm = c_a1.text_input("Nova Matéria", key="nm_add")
-                        nt = c_a2.text_input("Tópico", key="nt_add")
-                        if c_a3.button("Salvar", key="btn_add"):
-                            if nm and nt: 
-                                st.session_state.materias[nm] = [nt]
-                                salvar_dados() # <--- SALVA NO ARQUIVO
-                                st.success("Salvo!"); time.sleep(0.5); st.rerun()
-                    with tab3:
-                         md = st.selectbox("Excluir", lista_materias, key="del_sel")
-                         if st.button("Confirmar Exclusão"): 
-                             del st.session_state.materias[md]
-                             salvar_dados() # <--- SALVA NO ARQUIVO
-                             st.rerun()
+                    t1, t2, t3 = st.tabs(["Add", "Edit", "Del"])
+                    with t1:
+                        ca1, ca2, ca3 = st.columns([3,3,2])
+                        nm = ca1.text_input("Nova Matéria", key="add_nm")
+                        nt = ca2.text_input("Tópico", key="add_nt")
+                        if ca3.button("Salvar", key="add_btn"):
+                            if nm and nt: st.session_state.materias[nm] = [nt]; salvar_dados(); st.rerun()
+                    with t3:
+                        md = st.selectbox("Excluir", lista_materias, key="del_sel")
+                        if st.button("Confirmar", key="del_btn"): del st.session_state.materias[md]; salvar_dados(); st.rerun()
             else:
-                dados = st.session_state.sessao_estudo
-                total_seg = dados['acumulado'] + ((datetime.now()-dados['inicio']).total_seconds() if dados['rodando'] else 0)
+                d = st.session_state.sessao_estudo
+                total = d['acumulado'] + ((datetime.now()-d['inicio']).total_seconds() if d['rodando'] else 0)
                 
                 c_txt, c_time, c_act = st.columns([3, 4, 3])
                 with c_txt:
-                    st.markdown(f"### {dados['materia']}")
-                    st.progress(min(total_seg / (dados['meta']*60), 1.0))
+                    st.markdown(f"### {d['materia']}")
+                    st.progress(min(total / (d['meta']*60), 1.0))
                 with c_time:
-                    cor = "#48bb78" if dados['rodando'] else "#ecc94b"
-                    st.markdown(f"<h1 style='color:{cor};text-align:center;margin:0'>{formatar_relogio(total_seg)}</h1>", unsafe_allow_html=True)
+                    st.markdown(f"<h1 style='color:{'#48bb78' if d['rodando'] else '#ecc94b'};text-align:center;margin:0'>{formatar_relogio(total)}</h1>", unsafe_allow_html=True)
                 with c_act:
                     st.write(""); kp, ks = st.columns(2)
-                    if dados['rodando']:
+                    if d['rodando']:
                         if kp.button("⏸ Pausar", use_container_width=True):
-                            st.session_state.sessao_estudo['acumulado'] = total_seg
-                            st.session_state.sessao_estudo['rodando'] = False
-                            st.rerun()
+                            st.session_state.sessao_estudo['acumulado'] = total; st.session_state.sessao_estudo['rodando'] = False; st.rerun()
                     else:
                         if kp.button("▶ Retomar", use_container_width=True):
-                            st.session_state.sessao_estudo['inicio'] = datetime.now()
-                            st.session_state.sessao_estudo['rodando'] = True
-                            st.rerun()
+                            st.session_state.sessao_estudo['inicio'] = datetime.now(); st.session_state.sessao_estudo['rodando'] = True; st.rerun()
                     if ks.button("⏹ Finalizar", type="primary", use_container_width=True):
                         hj = datetime.now().strftime("%Y-%m-%d")
-                        h, a = st.session_state.historico_estudos.get(hj, [0, 0])
-                        # Garante compatibilidade e soma
-                        if isinstance(h, list): h_val, a_val = h[0], h[1]
-                        else: h_val, a_val = 0, 0
+                        val = st.session_state.historico_estudos.get(hj, [0, 0])
+                        h_val = val[0] if isinstance(val, list) else 0
+                        a_val = val[1] if isinstance(val, list) else 0
                         
-                        st.session_state.historico_estudos[hj] = [h_val + (total_seg/3600), a_val + 1]
-                        
-                        idx = dados.get('index_ciclo')
-                        if idx is not None:
-                            st.session_state.ciclo_estudos[idx]['cumprido'] = total_seg / 60
-                            st.session_state.ciclo_estudos[idx]['status'] = 'done'
-                        
-                        st.session_state.sessao_estudo = None
-                        salvar_dados() # <--- SALVA TUDO NO ARQUIVO
-                        st.balloons(); st.rerun()
-                if dados['rodando']: time.sleep(1); st.rerun()
+                        st.session_state.historico_estudos[hj] = [h_val + (total/3600), a_val + 1]
+                        if d.get('index_ciclo') is not None:
+                            st.session_state.ciclo_estudos[d['index_ciclo']]['cumprido'] = total / 60
+                            st.session_state.ciclo_estudos[d['index_ciclo']]['status'] = 'done'
+                        st.session_state.sessao_estudo = None; salvar_dados(); st.rerun()
+                if d['rodando']: time.sleep(1); st.rerun()
         st.write("##")
 
-        # Ciclo de Estudos
+        # Ciclo
         total_meta = sum([i['meta'] for i in st.session_state.ciclo_estudos])
         total_cump = sum([i.get('cumprido', 0) for i in st.session_state.ciclo_estudos])
         percent = (total_cump / total_meta * 100) if total_meta > 0 else 0
         
-        col_L, col_R = st.columns([2, 1])
-        with col_L: st.subheader("🔁 Ciclo de Estudos")
-        with col_R:
+        cL, cR = st.columns([2, 1])
+        with cL: st.subheader("🔁 Ciclo de Estudos")
+        with cR:
              with st.popover("➕ Adicionar ao Ciclo"):
-                m_c = st.selectbox("Matéria", lista_materias)
-                meta_c = st.number_input("Meta (min)", 15, 120, 45, step=5)
-                if st.button("Adicionar"):
+                # ADICIONEI KEYS ÚNICAS AQUI TAMBÉM (key="ciclo_...")
+                m_c = st.selectbox("Matéria", lista_materias, key="ciclo_add_mat")
+                meta_c = st.number_input("Meta (min)", 15, 120, 45, step=5, key="ciclo_add_meta")
+                if st.button("Adicionar", key="ciclo_add_btn"):
                     st.session_state.ciclo_estudos.append({"materia": m_c, "meta": meta_c, "cumprido": 0, "status": "pending"})
-                    salvar_dados() # <--- SALVA NO ARQUIVO
-                    st.rerun()
+                    salvar_dados(); st.rerun()
 
         if st.session_state.ciclo_estudos:
             st.markdown(f"""<div style="margin-bottom: 30px;"><div style="display:flex; justify-content:space-between;">
@@ -257,19 +223,14 @@ if menu == "🏠 Home":
                 with c_btn:
                     st.write(""); st.write("")
                     dis = True if (st.session_state.sessao_estudo or p_item >= 100) else False
-                    if not dis and st.button("▶", key=f"p_{i}"):
+                    if not dis and st.button("▶", key=f"play_ciclo_{i}"):
                         st.session_state.sessao_estudo = {
                             "materia": item['materia'], "meta": item['meta'], "inicio": datetime.now(), 
                             "acumulado": item.get('cumprido',0)*60, "rodando": True, "index_ciclo": i, "conteudo": "Ciclo"
                         }
-                        item['status'] = 'active'
-                        salvar_dados() # <--- SALVA STATUS
-                        st.rerun()
+                        item['status'] = 'active'; salvar_dados(); st.rerun()
             
-            if st.button("🗑️ Limpar Ciclo"):
-                st.session_state.ciclo_estudos = []
-                salvar_dados() # <--- LIMPA E SALVA
-                st.rerun()
+            if st.button("🗑️ Limpar Ciclo"): st.session_state.ciclo_estudos = []; salvar_dados(); st.rerun()
 
 elif menu == "⏳ Pomodoro": st.header("Pomodoro")
 elif menu == "✅ Tarefas": st.header("Tarefas")
