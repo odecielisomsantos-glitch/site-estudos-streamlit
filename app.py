@@ -1,146 +1,171 @@
 import streamlit as st
-import time, calendar, json, os, random, pytz
-from datetime import datetime, timedelta
+from streamlit_gsheets import GSheetsConnection
+import pandas as pd
+import plotly.graph_objects as go
+import base64
 
-st.set_page_config(page_title="StudyHub Pro", page_icon="🎓", layout="wide")
+# 1. Configurações de Interface
+st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="collapsed")
 
-def agora_br():
-    return datetime.now(pytz.timezone('America/Sao_Paulo'))
+if 'dark_mode' not in st.session_state:
+    st.session_state.dark_mode = False
 
-CREDENCIAIS = {"Odecielisom": "Fernanda", "Fernanda": "Odecielisom"}
-MESES_PT = {1:"Janeiro",2:"Fevereiro",3:"Março",4:"Abril",5:"Maio",6:"Junho",7:"Julho",8:"Agosto",9:"Setembro",10:"Outubro",11:"Novembro",12:"Dezembro"}
+def toggle_theme():
+    st.session_state.dark_mode = not st.session_state.dark_mode
 
-if 'logado' not in st.session_state: st.session_state.logado = False
-if 'usuario_atual' not in st.session_state: st.session_state.usuario_atual = ""
+# Paleta de Cores Atlas (Semafórica)
+COLORS = {
+    "success": "#10b981", # Verde (90%+)
+    "warning": "#f59e0b", # Amarelo (70-79.99%)
+    "danger": "#ef4444",  # Vermelho (<70%)
+    "neutral": "#6366f1", # Azul/Roxo para a faixa de 80-89% (não especificada)
+    "atlas": "#F97316"    # Laranja padrão
+}
 
-def carregar_dados():
-    arq = f"dados_{st.session_state.usuario_atual}.json"
-    st.session_state.update({"materias":{},"historico":{},"ciclo_estudos":[],"flashcards":[],"revisoes":[],"xp":0,"nivel":1})
-    if os.path.exists(arq):
-        try:
-            with open(arq, "r", encoding="utf-8") as f:
-                st.session_state.update(json.load(f))
-        except: pass
+is_dark = st.session_state.dark_mode
+theme = {
+    "bg": "#0E1117" if is_dark else "#FFFFFF",
+    "text": "#F9FAFB" if is_dark else "#111827",
+    "card": "#1F2937" if is_dark else "#F9FAFB",
+    "border": "#374151" if is_dark else "#E5E7EB"
+}
 
-def salvar_dados():
-    if not st.session_state.logado: return
-    with open(f"dados_{st.session_state.usuario_atual}.json", "w", encoding="utf-8") as f:
-        d = {k: st.session_state[k] for k in ["materias","historico","ciclo_estudos","flashcards","revisoes","xp","nivel"]}
-        json.dump(d, f, ensure_ascii=False, indent=4)
+# 2. CSS Customizado
+st.markdown(f"""
+    <style>
+    header, footer, #MainMenu {{visibility: hidden;}}
+    .stApp {{ background: {theme['bg']}; font-family: 'Inter', sans-serif; transition: 0.2s; }}
+    [data-testid="stSidebar"] {{ display: none; }}
+    .main .block-container {{ padding: 0; max-width: 100%; }}
+    .nav-main {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: {theme['bg']}; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid {theme['border']}; }}
+    .metric-strip {{ margin-top: 55px; padding: 15px 40px; background: {theme['card']}; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid {theme['border']}; }}
+    .main-content {{ margin-top: 20px; padding: 0 40px; color: {theme['text']}; }}
+    .card {{ position: relative; background: {theme['card']}; padding: 18px; border-radius: 16px; border: 2px solid {theme['border']}; text-align: center; margin-bottom: 30px; height: 195px; }}
+    .crown {{ position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite ease-in-out; }}
+    @keyframes float {{ 0%, 100% {{ transform: translateY(0); }} 50% {{ transform: translateY(-7px) rotate(3deg); }} }}
+    .av {{ width: 50px; height: 50px; background: #22D3EE; color: #083344 !important; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: 800; }}
+    .logout-btn {{ background: #EF4444; color: white !important; padding: 5px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; text-decoration: none; font-size: 11px; }}
+    </style>
+""", unsafe_allow_html=True)
 
-if not st.session_state.logado:
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        st.title("🔐 StudyHub")
-        u = st.text_input("Usuário"); p = st.text_input("Senha", type="password")
-        if st.button("Entrar", use_container_width=True):
-            if u in CREDENCIAIS and CREDENCIAIS[u] == p:
-                st.session_state.logado, st.session_state.usuario_atual = True, u
-                carregar_dados(); st.rerun()
-            else: st.error("Incorreto")
-    st.stop()
+# Funções de Processamento
+def get_color(val):
+    if val >= 90: return COLORS["success"]
+    if 70 <= val < 80: return COLORS["warning"]
+    if val < 70: return COLORS["danger"]
+    return COLORS["atlas"] # Padrão para 80-89.99%
 
-st.markdown("""<style>
-div[data-testid="stColumn"] > div > div > button {height:100px; width:100%; border-radius:0; border:1px solid #e0e0e0; display:flex; flex-direction:column; align-items:flex-start!important; justify-content:flex-start!important; padding:8px!important; font-size:0.9rem;}
-div[data-testid="stColumn"] > div > div > button[kind="primary"] {background-color:#e6fffa!important; border:1px solid #b2f5ea!important; color:#234e52!important;}
-.rpg-card {background:linear-gradient(135deg,#fff 0%,#f3f4f6 100%); padding:30px; border-radius:20px; text-align:center; min-height:200px; border:1px solid #e5e7eb; color:#1f2937;}
-.mission-gallery-card {background:#fff; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.1); border:1px solid #e5e7eb; margin-bottom:10px; text-align:center;}
-.mission-card-header {background:linear-gradient(135deg,#2563eb 0%,#1e40af 100%); padding:20px; font-size:2rem; color:#fff; border-radius:12px 12px 0 0;}
-@media (prefers-color-scheme: dark) {
-    div[data-testid="stColumn"] > div > div > button[kind="primary"] {background-color:#064e3b!important; color:#ecfdf5!important;}
-    .mission-gallery-card {background:#262730; border-color:#444;}
-    .rpg-card {background:linear-gradient(135deg,#262730 0%,#1f1f1f 100%); color:#fafafa;}
-}</style>""", unsafe_allow_html=True)
+def clean_p(v):
+    if pd.isna(v) or v == "" or str(v).strip() == "0%": return 0.0
+    try:
+        val = float(str(v).replace('%', '').replace(',', '.').strip())
+        return val
+    except: return 0.0
 
-@st.dialog("📅 Detalhes")
-def show_dia(dt, d, m):
-    v = st.session_state.historico.get(dt, [0, 0, []])
-    st.write(f"### {d} de {m}"); st.metric("Tempo Total", f"{int(v[0])}h {int((v[0]%1)*60)}m")
-    for i in (v[2] if len(v)>2 else []): st.success(i)
+def get_data(aba):
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    return conn.read(worksheet=aba, ttl=0, header=None)
 
-st.sidebar.title("StudyHub Pro")
-st.sidebar.caption(f"👤 {st.session_state.usuario_atual}")
-if st.session_state.get('sessao_estudo') and st.session_state.sessao_estudo['rodando']:
-    sec = (agora_br() - st.session_state.sessao_estudo['inicio']).total_seconds() + st.session_state.sessao_estudo['acumulado']
-    st.sidebar.success(f"⏱️ {st.session_state.sessao_estudo['materia']}\n\n{int(sec//3600):02d}:{int((sec%3600)//60):02d}:{int(sec%60):02d}")
-menu = st.sidebar.radio("Navegação", ["🏠 Home", "🔄 Revisões", "⚖️ Lei Seca", "🧠 Flashcards", "📊 Dados"])
-if st.sidebar.button("Sair"): st.session_state.logado = False; st.rerun()
+# --- LOGIN ---
+if 'auth' not in st.session_state: st.session_state.auth = False
+if not st.session_state.auth:
+    col_l, _ = st.columns([1, 2])
+    with col_l:
+        with st.form("login"):
+            u_in, p_in = st.text_input("Usuário").lower().strip(), st.text_input("Senha", type="password").strip()
+            if st.form_submit_button("ACESSAR"):
+                df_u = get_data("Usuarios").iloc[1:]
+                df_u.columns = ['User', 'Pass', 'Nome', 'Func']
+                m = df_u[(df_u['User'].astype(str).str.lower() == u_in) & (df_u['Pass'].astype(str) == p_in)]
+                if not m.empty:
+                    st.session_state.auth, st.session_state.user = True, m.iloc[0].to_dict()
+                    st.rerun()
 
-if menu == "🏠 Home":
-    hj = agora_br()
-    if 'ano_cal' not in st.session_state: st.session_state.ano_cal, st.session_state.mes_cal = hj.year, hj.month
-    with st.expander("📅 Calendário", expanded=True):
-        c_p, c_m, c_n = st.columns([1, 6, 1])
-        if c_p.button("⬅️"): st.session_state.mes_cal = 12 if st.session_state.mes_cal==1 else st.session_state.mes_cal-1
-        c_m.markdown(f"<h3 style='text-align:center'>{MESES_PT[st.session_state.mes_cal]} {st.session_state.ano_cal}</h3>", unsafe_allow_html=True)
-        if c_n.button("➡️"): st.session_state.mes_cal = 1 if st.session_state.mes_cal==12 else st.session_state.mes_cal+1
-        cal_obj = calendar.Calendar(firstweekday=6)
-        for sem in cal_obj.monthdayscalendar(st.session_state.ano_cal, st.session_state.mes_cal):
-            cols = st.columns(7)
-            for i, d in enumerate(sem):
-                if d:
-                    key = f"{st.session_state.ano_cal}-{st.session_state.mes_cal:02d}-{d:02d}"
-                    v = st.session_state.historico.get(key, [0,0,[]])
-                    label = f"{d}" + (f"\n\n⏱️{int(v[0])}h" if v[0]>0 else "")
-                    if cols[i].button(label, key=f"c_{key}", type="primary" if v[0]>0 else "secondary"):
-                        show_dia(key, d, MESES_PT[st.session_state.mes_cal])
-    st.divider()
-    mats = list(st.session_state.materias.keys())
-    if not mats:
-        nm = st.text_input("Nova Matéria"); nc = st.text_input("Conteúdo")
-        if st.button("Salvar"): st.session_state.materias[nm] = [nc]; salvar_dados(); st.rerun()
-    else:
-        if not st.session_state.get('sessao_estudo'):
-            c1, c2, c3 = st.columns([3, 2, 1])
-            m = c1.selectbox("Matéria", mats); mt = c2.number_input("Meta (min)", 5, 120, 45)
-            if c3.button("▶ Iniciar", use_container_width=True):
-                st.session_state.sessao_estudo = {"materia":m, "inicio":agora_br(), "acumulado":0, "rodando":True, "meta":mt}
-                st.rerun()
-        else:
-            s = st.session_state.sessao_estudo
-            total = s['acumulado'] + (agora_br() - s['inicio']).total_seconds()
-            st.title(f"{int(total//3600):02d}:{int((total%3600)//60):02d}:{int(total%60):02d}")
-            if st.button("⏹ Finalizar"):
-                dhj = agora_br().strftime("%Y-%m-%d")
-                v = st.session_state.historico.get(dhj, [0, 0, []])
-                v[0] += total/3600; v[1] += 1; v[2].append(f"{s['materia']} - {int(total//60)}m")
-                st.session_state.historico[dhj] = v; st.session_state.sessao_estudo = None; salvar_dados(); st.rerun()
-            time.sleep(1); st.rerun()
+# --- DASHBOARD ---
+else:
+    u = st.session_state.user
+    p_match = str(u['Nome']).upper().split()[0]
+    df_raw = get_data("DADOS-DIA")
+    
+    if df_raw is not None:
+        # Ranking Geral
+        rk = df_raw.iloc[1:24, [0, 1]].dropna()
+        rk.columns = ["Nome", "Meta_Str"]
+        rk['Meta_Num'] = rk['Meta_Str'].apply(clean_p)
+        rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
 
-elif menu == "🧠 Flashcards":
-    t1, t2 = st.tabs(["⚔️ Arena", "⚒️ Forja"])
-    with t2:
-        pst = st.text_input("Pasta"); mat = st.selectbox("Matéria", mats if mats else ["Geral"])
-        p = st.text_area("Pergunta"); r = st.text_area("Resposta")
-        if st.button("Forjar"):
-            st.session_state.flashcards.append({"pasta":pst or "Geral","materia":mat,"pergunta":p,"resposta":r,"prox":agora_br().strftime("%Y-%m-%d"),"int":1})
-            salvar_dados(); st.success("Salvo!")
-    with t1:
-        if not st.session_state.get('p_sel'):
-            pastas = list(set(c.get('pasta', 'Geral') for c in st.session_state.flashcards))
-            cols = st.columns(4)
-            for i, p in enumerate(pastas):
-                with cols[i%4]:
-                    st.markdown(f'<div class="mission-gallery-card"><div class="mission-card-header">🛡️</div><div class="mission-card-body">{p}</div></div>', unsafe_allow_html=True)
-                    if st.button("Iniciar", key=f"p_{p}", use_container_width=True): st.session_state.p_sel = p; st.rerun()
-        else:
-            if st.button("⬅ Voltar"): st.session_state.p_sel = None; st.rerun()
-            pend = [c for c in st.session_state.flashcards if c.get('pasta')==st.session_state.p_sel and c.get('prox','2000-01-01')<=agora_br().strftime("%Y-%m-%d")]
-            if not pend: st.success("Missão cumprida!")
-            else:
-                card = pend[0]
-                st.markdown(f'<div class="rpg-card"><b>{card["materia"]}</b><br><br>{card["pergunta"]}</div>', unsafe_allow_html=True)
-                if st.button("Revelar Resposta"): st.info(card["resposta"])
-                c1, c2, c3 = st.columns(3)
-                if c1.button("🔴 Errei"):
-                    card['prox'] = (agora_br() + timedelta(days=1)).strftime("%Y-%m-%d"); salvar_dados(); st.rerun()
-                if c2.button("🟡 Bom"):
-                    card['int'] *= 2; card['prox'] = (agora_br() + timedelta(days=card['int'])).strftime("%Y-%m-%d"); salvar_dados(); st.rerun()
-                if c3.button("🟢 Fácil"):
-                    card['int'] *= 4; card['prox'] = (agora_br() + timedelta(days=card['int'])).strftime("%Y-%m-%d"); salvar_dados(); st.rerun()
+        # Processamento A27:AG211
+        df_hist = df_raw.iloc[26:211, 0:33].copy()
+        df_hist.columns = ["Nome", "Metrica"] + [f"{i:02d}" for i in range(1, 32)]
+        u_meta = df_hist[(df_hist['Nome'].astype(str).str.upper().str.contains(p_match)) & (df_hist['Metrica'].astype(str).str.upper() == "META")]
 
-elif menu == "📊 Dados":
-    st.title("Estatísticas"); total = sum(v[0] for v in st.session_state.historico.values())
-    st.metric("Total de Horas", f"{int(total)}h")
-    with st.expander("Configurações"):
-        if st.button("Resetar Tudo"): st.session_state.clear(); st.rerun()
+        u_rk_row = rk[rk['Nome'].astype(str).str.upper().str.contains(p_match)]
+        pos = f"{u_rk_row.index[0] + 1}º" if not u_rk_row.empty else "N/A"
+
+        # Navbar Superior
+        st.markdown(f'''<div class="nav-main"><div class="brand-logo"><span style="color:#F97316; font-weight:900; font-size:22px;">ATLAS</span></div><div style="display:flex; align-items:center; gap:20px;"><div style="font-size:12px; font-weight:600; color:{theme['text']};">{u["Nome"]} | 2026 ●</div><a href="/" target="_self" class="logout-btn">SAIR</a></div></div><div class="metric-strip">''', unsafe_allow_html=True)
+        cs = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
+        with cs[0]: 
+            with st.popover("🔔"): st.info("Sem avisos.")
+        with cs[1]: st.markdown(f'<div style="text-align:center;"><div style="font-size:10px; opacity:0.7;">SUA COLOCAÇÃO</div><div style="font-size:16px; font-weight:700;">🏆 {pos}</div></div>', unsafe_allow_html=True)
+        with cs[2]: st.markdown(f'<div style="text-align:center;"><div style="font-size:10px; opacity:0.7;">PERÍODO</div><div style="font-size:16px; font-weight:700;">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
+        with cs[3]: st.markdown(f'<div style="text-align:center;"><div style="font-size:10px; opacity:0.7;">STATUS</div><div style="font-size:16px; font-weight:700;">🟢 ONLINE</div></div>', unsafe_allow_html=True)
+        with cs[4]: st.markdown(f'<div style="text-align:center;"><div style="font-size:10px; opacity:0.7;">UNIDADE</div><div style="font-size:16px; font-weight:700;">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
+        with cs[5]: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="t_dark")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="main-content">', unsafe_allow_html=True)
+        col_rank, col_chart = st.columns(2)
+        
+        with col_rank:
+            st.markdown("### 🏆 Ranking da Equipe")
+            # Estilização condicional da tabela
+            st.dataframe(rk[["Nome", "Meta_Str"]], use_container_width=True, hide_index=True, height=400)
+            
+        with col_chart:
+            st.markdown(f"### 📈 Evolução da Meta - {p_match.title()}")
+            if not u_meta.empty:
+                y_vals = [clean_p(v) for v in u_meta.iloc[0, 2:].values]
+                x_days = [f"{i:02d}" for i in range(1, 32)]
+                
+                # Cores dos marcadores baseadas no seu padrão
+                marker_colors = [get_color(v) for v in y_vals]
+                
+                fig = go.Figure()
+                # Linha de conexão
+                fig.add_trace(go.Scatter(x=x_days, y=y_vals, mode='lines', line=dict(color="rgba(249, 115, 22, 0.4)", width=2), hoverinfo='skip'))
+                # Pontos coloridos (O Padrão solicitado)
+                fig.add_trace(go.Scatter(x=x_days, y=y_vals, mode='markers', marker=dict(size=10, color=marker_colors, line=dict(width=1, color="white")), hovertemplate='Dia %{x}: %{y}%<extra></extra>'))
+                
+                fig.update_layout(
+                    margin=dict(l=0, r=0, t=10, b=0), height=400,
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    xaxis=dict(showgrid=False, color=theme['text'], tickmode='linear'),
+                    yaxis=dict(range=[0, 110], ticksuffix='%', color=theme['text'], gridcolor="rgba(255,255,255,0.05)", zeroline=False),
+                    showlegend=False
+                )
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            else: st.warning("Dados não localizados.")
+
+        # Performance Individual com Cores Dinâmicas
+        st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
+        cols_cards = st.columns(8)
+        for idx, row in rk.iterrows():
+            val = row['Meta_Num']
+            # Lógica de cor solicitada
+            current_color = get_color(val)
+            # Fundo suave para identificação
+            bg_card = f"{current_color}22" # Transparência de 13% (hex 22)
+            
+            crown = '<div class="crown">👑</div>' if val >= 80 else ''
+            ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
+            
+            with cols_cards[idx % 8]:
+                st.markdown(f'''
+                    <div class="card" style="background: {bg_card}; border-color: {current_color};">
+                        {crown}<div class="av">{ini}</div>
+                        <div style="font-size:10px; font-weight:700; height:35px; line-height:1.2;">{" ".join(str(row["Nome"]).split()[:2])}</div>
+                        <div style="font-size:22px; font-weight:800; color:{current_color};">{row["Meta_Str"]}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
