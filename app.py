@@ -12,7 +12,7 @@ if 'dark_mode' not in st.session_state:
 def toggle_theme():
     st.session_state.dark_mode = not st.session_state.dark_mode
 
-# Definição de Cores do Tema
+# Definição das Cores do Tema
 is_dark = st.session_state.dark_mode
 theme = {
     "bg": "#0E1117" if is_dark else "#FFFFFF",
@@ -21,7 +21,7 @@ theme = {
     "border": "#374151" if is_dark else "#E5E7EB"
 }
 
-# 2. CSS Customizado para Header e Cards
+# 2. CSS Customizado
 st.markdown(f"""
     <style>
     header, footer, #MainMenu {{visibility: hidden;}}
@@ -31,7 +31,6 @@ st.markdown(f"""
     .nav-main {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: {theme['bg']}; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid {theme['border']}; }}
     .metric-strip {{ margin-top: 55px; padding: 15px 40px; background: {theme['card']}; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid {theme['border']}; }}
     .main-content {{ margin-top: 20px; padding: 0 40px; }}
-    
     .card {{ position: relative; padding: 18px; border-radius: 16px; border: 2px solid {theme['border']}; text-align: center; margin-bottom: 30px; height: 195px; background: {theme['card']}; }}
     .crown {{ position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite ease-in-out; }}
     @keyframes float {{ 0%, 100% {{ transform: translateY(0); }} 50% {{ transform: translateY(-7px) rotate(3deg); }} }}
@@ -40,10 +39,11 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# Funções de Processamento
+# Funções de Dados
 def clean_numeric(val):
-    if pd.isna(val) or val == "" or str(val).strip() == "0%": return 0.0
-    try: return float(str(val).replace('%', '').replace(',', '.').strip())
+    if pd.isna(val) or val == "" or str(val).strip() == "0": return 0.0
+    try:
+        return float(str(val).replace('%', '').replace(',', '.').strip())
     except: return 0.0
 
 def get_data(aba):
@@ -83,7 +83,7 @@ else:
         
         pos = f"{rk[rk['Nome'].astype(str).str.upper().str.contains(p_match)].index[0] + 1}º" if not rk.empty else "N/A"
 
-        # Navbar Superior
+        # Navbar
         st.markdown(f'''<div class="nav-main"><div class="brand-logo"><span style="color:#F97316; font-weight:900; font-size:22px;">ATLAS</span></div><div style="display:flex; align-items:center; gap:20px;"><div style="font-size:12px; font-weight:600;">{u["Nome"]} | 2026 ●</div><a href="/" target="_self" class="logout-btn">SAIR</a></div></div><div class="metric-strip">''', unsafe_allow_html=True)
         cs = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
         with cs[0]: with st.popover("🔔"): st.info("Sem avisos.")
@@ -99,16 +99,16 @@ else:
         
         with col_rk:
             st.markdown("### 🏆 Ranking da Equipe")
-            # APLICAÇÃO DO PADRÃO DE CORES NO RANKING
-            def style_ranking(row):
+            # PADRÃO DE CORES SOLICITADO
+            def apply_colors(row):
                 val = clean_numeric(row['Meta_Str'])
-                if val >= 90: color = 'background-color: #d1fae5; color: black' # Verde claro
-                elif 70 <= val < 80: color = 'background-color: #fef3c7; color: black' # Amarelo claro
-                elif val < 70: color = 'background-color: #fee2e2; color: black' # Vermelho claro
-                else: color = '' # 80-89% (Branco/Cinza padrão)
-                return [color] * len(row)
+                if val >= 90: return ['background-color: #d1fae5; color: #065f46; font-weight: bold'] * 2
+                if 70 <= val < 80: return ['background-color: #fef3c7; color: #92400e; font-weight: bold'] * 2
+                if val < 70: return ['background-color: #fee2e2; color: #991b1b; font-weight: bold'] * 2
+                # Estilo padrão para 80-89.99% (Laranja Atlas suave)
+                return ['background-color: #ffedd5; color: #9a3412; font-weight: bold'] * 2
 
-            st.dataframe(rk[["Nome", "Meta_Str"]].style.apply(style_ranking, axis=1), 
+            st.dataframe(rk[["Nome", "Meta_Str"]].style.apply(apply_colors, axis=1), 
                          use_container_width=True, hide_index=True, height=400)
             
         with col_chart:
@@ -117,7 +117,7 @@ else:
                 y_vals = [clean_numeric(v) for v in u_meta_row.iloc[0, 2:].values]
                 x_days = [f"{i:02d}" for i in range(1, 32)]
                 
-                # GRÁFICO PRESERVADO: Laranja com Marcadores
+                # GRÁFICO PRESERVADO (Padrão Laranja Atlas)
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
                     x=x_days, y=y_vals, mode='lines+markers',
@@ -133,7 +133,7 @@ else:
                 )
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-        # Cards Individuais com Coroa
+        # Performance Individual com Coroa
         st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
         cols_cards = st.columns(8)
         for idx, row in rk.iterrows():
