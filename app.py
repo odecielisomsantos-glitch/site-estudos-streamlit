@@ -1,152 +1,81 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
-import pandas as pd
-import plotly.graph_objects as go
+import json
+import os
 
-# 1. Configuração de Layout
-st.set_page_config(page_title="Equipe Atlas", page_icon="🌊", layout="wide", initial_sidebar_state="collapsed")
+# Configuração da página
+st.set_page_config(page_title="Foco na Missão", page_icon="🎯")
 
-if 'dark_mode' not in st.session_state:
-    st.session_state.dark_mode = False
+# --- FUNÇÕES DE PERSISTÊNCIA DE DADOS ---
+DB_FILE = "usuarios.json"
 
-def toggle_theme():
-    st.session_state.dark_mode = not st.session_state.dark_mode
+def carregar_usuarios():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    return {"odecielisonsonadson02@gmail.com": "ode123"}
 
-# Definição das Cores do Tema
-is_dark = st.session_state.dark_mode
-theme = {
-    "bg": "#0E1117" if is_dark else "#FFFFFF",
-    "text": "#F9FAFB" if is_dark else "#111827",
-    "card": "#1F2937" if is_dark else "#F9FAFB",
-    "border": "#374151" if is_dark else "#E5E7EB"
-}
+def salvar_usuario(email, senha):
+    usuarios = carregar_usuarios()
+    usuarios[email] = senha
+    with open(DB_FILE, "w") as f:
+        json.dump(usuarios, f)
 
-# 2. CSS Customizado
-st.markdown(f"""
-    <style>
-    header, footer, #MainMenu {{visibility: hidden;}}
-    .stApp {{ background: {theme['bg']}; font-family: 'Inter', sans-serif; }}
-    [data-testid="stSidebar"] {{ display: none; }}
-    .main .block-container {{ padding: 0; max-width: 100%; }}
-    .nav-main {{ position: fixed; top: 0; left: 0; width: 100%; height: 55px; background: {theme['bg']}; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; z-index: 1001; border-bottom: 1px solid {theme['border']}; }}
-    .metric-strip {{ margin-top: 55px; padding: 15px 40px; background: {theme['card']}; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid {theme['border']}; }}
-    .main-content {{ margin-top: 20px; padding: 0 40px; }}
-    .card {{ position: relative; padding: 18px; border-radius: 16px; border: 2px solid {theme['border']}; text-align: center; margin-bottom: 30px; height: 195px; background: {theme['card']}; }}
-    .crown {{ position: absolute; top: -18px; left: 35%; font-size: 24px; animation: float 3s infinite ease-in-out; }}
-    @keyframes float {{ 0%, 100% {{ transform: translateY(0); }} 50% {{ transform: translateY(-7px) rotate(3deg); }} }}
-    .av {{ width: 50px; height: 50px; background: #22D3EE; color: #083344 !important; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-weight: 800; }}
-    .logout-btn {{ background: #EF4444; color: white !important; padding: 5px 12px; border-radius: 6px; font-weight: bold; font-size: 11px; text-decoration: none; }}
-    </style>
-""", unsafe_allow_html=True)
+# --- SISTEMA DE ESTADO DA SESSÃO ---
+if "logado" not in st.session_state:
+    st.session_state.logado = False
 
-# Funções de Dados
-def clean_numeric(val):
-    if pd.isna(val) or val == "" or str(val).strip() == "0": return 0.0
-    try:
-        return float(str(val).replace('%', '').replace(',', '.').strip())
-    except: return 0.0
+# --- INTERFACE ---
 
-def get_data(aba):
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    return conn.read(worksheet=aba, ttl=0, header=None)
+st.title("🎯 Foco na Missão")
+st.subheader("Plataforma de Registro e Análise de Estudos")
 
-# --- LOGIN ---
-if 'auth' not in st.session_state: st.session_state.auth = False
-if not st.session_state.auth:
-    col_l, _ = st.columns([1, 2])
-    with col_l:
-        with st.form("login"):
-            u_in, p_in = st.text_input("Usuário").lower().strip(), st.text_input("Senha", type="password").strip()
-            if st.form_submit_button("ACESSAR"):
-                df_u = get_data("Usuarios").iloc[1:]
-                df_u.columns = ['User', 'Pass', 'Nome', 'Func']
-                m = df_u[(df_u['User'].astype(str).str.lower() == u_in) & (df_u['Pass'].astype(str) == p_in)]
-                if not m.empty:
-                    st.session_state.auth, st.session_state.user = True, m.iloc[0].to_dict()
-                    st.rerun()
+if not st.session_state.logado:
+    tab1, tab2 = st.tabs(["Login", "Cadastrar Novo Usuário"])
+
+    with tab1:
+        st.write("### Acessar conta")
+        email_input = st.text_input("Email")
+        senha_input = st.text_input("Senha", type="password")
+        
+        if st.button("Entrar"):
+            usuarios = carregar_usuarios()
+            if email_input in usuarios and usuarios[email_input] == senha_input:
+                st.session_state.logado = True
+                st.success("Login realizado com sucesso!")
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos.")
+
+    with tab2:
+        st.write("### Criar nova conta")
+        novo_email = st.text_input("Novo Email")
+        nova_senha = st.text_input("Nova Senha", type="password")
+        confirmar_senha = st.text_input("Confirme a Senha", type="password")
+
+        if st.button("Cadastrar"):
+            usuarios = carregar_usuarios()
+            if novo_email in usuarios:
+                st.warning("Este email já está cadastrado.")
+            elif nova_senha != confirmar_senha:
+                st.error("As senhas não coincidem.")
+            elif novo_email == "" or nova_senha == "":
+                st.error("Preencha todos os campos.")
+            else:
+                salvar_usuario(novo_email, nova_senha)
+                st.success("Usuário cadastrado com sucesso! Agora vá para a aba de Login.")
+
 else:
-    u = st.session_state.user
-    p_match = str(u['Nome']).upper().split()[0]
-    df_raw = get_data("DADOS-DIA")
+    # --- ÁREA LOGADA ---
+    st.sidebar.write(f"Conectado como: {email_input if 'email_input' in locals() else 'Usuário'}")
+    if st.sidebar.button("Sair"):
+        st.session_state.logado = False
+        st.rerun()
+
+    st.write("---")
+    st.write("## Bem-vindo à sua área de estudos!")
+    st.info("Aqui começaremos a registrar suas missões e análises.")
     
-    if df_raw is not None:
-        # 3. RANKING (A1:B24) com Logica de Cores
-        rk = df_raw.iloc[1:24, [0, 1]].dropna()
-        rk.columns = ["Nome", "Meta_Str"]
-        rk['Meta_Num'] = rk['Meta_Str'].apply(clean_numeric)
-        rk = rk.sort_values(by='Meta_Num', ascending=False).reset_index(drop=True)
-
-        # 4. EVOLUÇÃO (A27:AG211)
-        df_hist = df_raw.iloc[26:211, 0:33].copy()
-        df_hist.columns = ["Nome", "Metrica"] + [f"{i:02d}" for i in range(1, 32)]
-        u_meta_row = df_hist[(df_hist['Nome'].astype(str).str.upper().str.contains(p_match)) & (df_hist['Metrica'].astype(str).str.upper() == "META")]
-        
-        pos = f"{rk[rk['Nome'].astype(str).str.upper().str.contains(p_match)].index[0] + 1}º" if not rk.empty else "N/A"
-
-        # Navbar
-        st.markdown(f'''<div class="nav-main"><div class="brand-logo"><span style="color:#F97316; font-weight:900; font-size:22px;">ATLAS</span></div><div style="display:flex; align-items:center; gap:20px;"><div style="font-size:12px; font-weight:600;">{u["Nome"]} | 2026 ●</div><a href="/" target="_self" class="logout-btn">SAIR</a></div></div><div class="metric-strip">''', unsafe_allow_html=True)
-        cs = st.columns([0.5, 1.5, 1.5, 1.5, 2.5, 0.5])
-        with cs[0]: with st.popover("🔔"): st.info("Sem avisos.")
-        with cs[1]: st.markdown(f'<div style="text-align:center;"><div style="font-size:10px; opacity:0.7;">SUA COLOCAÇÃO</div><div style="font-size:16px; font-weight:700;">🏆 {pos}</div></div>', unsafe_allow_html=True)
-        with cs[2]: st.markdown(f'<div style="text-align:center;"><div style="font-size:10px; opacity:0.7;">PERÍODO</div><div style="font-size:16px; font-weight:700;">JANEIRO / 2026</div></div>', unsafe_allow_html=True)
-        with cs[3]: st.markdown(f'<div style="text-align:center;"><div style="font-size:10px; opacity:0.7;">STATUS</div><div style="font-size:16px; font-weight:700;">🟢 ONLINE</div></div>', unsafe_allow_html=True)
-        with cs[4]: st.markdown(f'<div style="text-align:center;"><div style="font-size:10px; opacity:0.7;">UNIDADE</div><div style="font-size:16px; font-weight:700;">CALL CENTER PDF</div></div>', unsafe_allow_html=True)
-        with cs[5]: st.toggle("🌙", value=st.session_state.dark_mode, on_change=toggle_theme, key="t_dark")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown('<div class="main-content">', unsafe_allow_html=True)
-        col_rk, col_chart = st.columns(2)
-        
-        with col_rk:
-            st.markdown("### 🏆 Ranking da Equipe")
-            # PADRÃO DE CORES SOLICITADO
-            def apply_colors(row):
-                val = clean_numeric(row['Meta_Str'])
-                if val >= 90: return ['background-color: #d1fae5; color: #065f46; font-weight: bold'] * 2
-                if 70 <= val < 80: return ['background-color: #fef3c7; color: #92400e; font-weight: bold'] * 2
-                if val < 70: return ['background-color: #fee2e2; color: #991b1b; font-weight: bold'] * 2
-                # Estilo padrão para 80-89.99% (Laranja Atlas suave)
-                return ['background-color: #ffedd5; color: #9a3412; font-weight: bold'] * 2
-
-            st.dataframe(rk[["Nome", "Meta_Str"]].style.apply(apply_colors, axis=1), 
-                         use_container_width=True, hide_index=True, height=400)
-            
-        with col_chart:
-            st.markdown(f"### 📈 Evolução da Meta - {p_match.title()}")
-            if not u_meta_row.empty:
-                y_vals = [clean_numeric(v) for v in u_meta_row.iloc[0, 2:].values]
-                x_days = [f"{i:02d}" for i in range(1, 32)]
-                
-                # GRÁFICO PRESERVADO (Padrão Laranja Atlas)
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=x_days, y=y_vals, mode='lines+markers',
-                    line=dict(color="#F97316", width=3),
-                    marker=dict(size=8, color="#F97316", symbol='circle'),
-                    hovertemplate='Dia %{x}<br>Valor: %{y}%<extra></extra>'
-                ))
-                fig.update_layout(
-                    margin=dict(l=0, r=0, t=10, b=0), height=400,
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                    xaxis=dict(showgrid=False, color=theme['text'], tickmode='linear'),
-                    yaxis=dict(range=[0, 105], ticksuffix='%', color=theme['text'], gridcolor="rgba(0,0,0,0.1)", zeroline=False)
-                )
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-        # Performance Individual com Coroa
-        st.markdown("<br>### 📊 Performance Individual", unsafe_allow_html=True)
-        cols_cards = st.columns(8)
-        for idx, row in rk.iterrows():
-            val = row['Meta_Num']
-            crown = '<div class="crown">👑</div>' if val >= 80 else ''
-            ini = "".join([n[0] for n in str(row['Nome']).split()[:2]]).upper()
-            
-            with cols_cards[idx % 8]:
-                st.markdown(f'''
-                    <div class="card">
-                        {crown}<div class="av">{ini}</div>
-                        <div style="font-size:10px; font-weight:700; height:35px; line-height:1.2; color:{theme['text']};">{" ".join(str(row["Nome"]).split()[:2])}</div>
-                        <div style="font-size:22px; font-weight:800; color:#F97316;">{row["Meta_Str"]}</div>
-                    </div>
-                ''', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Exemplo de onde os registros entrarão futuramente
+    st.date_input("Data do estudo")
+    st.text_input("O que você estudou hoje?")
+    st.button("Salvar Registro")
